@@ -51,7 +51,7 @@ Todo se dibuja con primitivas grises (*greybox*) para que se juegue desde el dí
 Necesitas el [.NET 8 SDK](https://dotnet.microsoft.com/download).
 
 ```bash
-cd unity/Tests~/SimTests && dotnet test            # 19 pruebas: mecánicas, determinismo, snapshots, red con lag/pérdida, UDP real, anuncio LAN
+cd unity/Tests~/SimTests && dotnet test            # 21 pruebas: mecánicas, determinismo, snapshots, red con lag/pérdida, UDP real, anuncio LAN
 cd unity/Tests~/HeadlessHost && dotnet run -c Release -- balance 25 normal   # métricas de balance con miles de rondas de bots
 cd unity/Tests~/HeadlessHost && dotnet run -- lan "Sala de prueba"           # abre una sala LAN sin gráficos (servidor)
 cd unity/Tests~/CoreCompat && dotnet build         # confirma compatibilidad con el perfil de Unity (.NET Standard 2.1, C# 9)

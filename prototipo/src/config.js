@@ -45,6 +45,8 @@ export const TUNING = {
     earlyCatchDelay: 0.12,
     spin: 24,
     groundFriction: 6,
+    groundAutoReturn: 3, // la gorra tirada regresa sola a los 3 s (sin quedarte desarmado para siempre)
+    tirajeGap: 0.85,     // Serigrafía "Tiraje": separación entre copias en la misma línea
     aimAssistAngle: 0.6, // ~34°: ayuda de apuntado táctil
   },
   round: {
@@ -67,13 +69,15 @@ export const TUNING = {
 
 // Paleta de jugadores: colores muy distintos entre sí (legibles en pantalla chica
 // y diferenciables con daltonismo común gracias a la luminosidad distinta).
+// Paleta Okabe-Ito: distinguible con los tipos comunes de daltonismo.
+// El color del jugador vive en el aro bajo sus pies y en su gorra, nunca en la ropa.
 export const PLAYER_COLORS = [
-  { name: 'Naranja', hex: 0xff6a2b, css: '#ff6a2b' },
-  { name: 'Cian', hex: 0x22c7e8, css: '#22c7e8' },
-  { name: 'Amarillo', hex: 0xffd23f, css: '#ffd23f' },
-  { name: 'Magenta', hex: 0xe84393, css: '#e84393' },
-  { name: 'Verde', hex: 0x4cd964, css: '#4cd964' },
-  { name: 'Violeta', hex: 0x8e6cff, css: '#8e6cff' },
+  { name: 'Naranja', hex: 0xe69f00, css: '#e69f00' },
+  { name: 'Celeste', hex: 0x56b4e9, css: '#56b4e9' },
+  { name: 'Amarillo', hex: 0xf0e442, css: '#f0e442' },
+  { name: 'Rosa', hex: 0xcc79a7, css: '#cc79a7' },
+  { name: 'Verde', hex: 0x009e73, css: '#009e73' },
+  { name: 'Azul', hex: 0x0072b2, css: '#0072b2' },
 ];
 
 // Power-ups = las 6 técnicas de tinta. Duran hasta que te noquean
@@ -81,8 +85,8 @@ export const PLAYER_COLORS = [
 export const POWERUPS = {
   serigrafia: {
     name: 'Serigrafía',
-    effect: 'Triple tiro',
-    desc: 'Imprime 2 copias extra de tu gorra en abanico.',
+    effect: 'Tiraje',
+    desc: 'Imprime 2 copias de tu gorra que viajan en fila detrás de la original.',
     color: 0xff4fa3, css: '#ff4fa3', glyph: '≡',
   },
   tatuaje: {

@@ -291,11 +291,11 @@ namespace BoomerangFighters.Core
             Emit(SimEventType.Throw, p.Id, pos: p.Pos, value: charge);
             if (p.Power == PowerUp.Serigrafia)
             {
-                foreach (float s in new[] { -CT.GhostSpread, CT.GhostSpread })
+                // "Tiraje": copias en fila sobre la misma línea (no en abanico)
+                for (int k = 1; k <= 2; k++)
                 {
-                    var gd = Vec2.FromAngle(dir.Angle + s);
                     var g = NewCap(p.Id, true);
-                    Launch(g, p.Pos + gd * off, gd * sp, outT, PowerUp.None);
+                    Launch(g, p.Pos + dir * (off - CT.TirajeGap * k), dir * sp, outT, PowerUp.None);
                     Caps.Add(g);
                 }
             }
@@ -403,7 +403,9 @@ namespace BoomerangFighters.Core
         {
             p.HasCap = true;
             HoldCap(p.Cap);
-            Emit(SimEventType.Catch, p.Id, pos: p.Pos);
+            bool dashCatch = p.DashT > 0f;
+            if (dashCatch) p.DashCd = 0f; // atraparla en pleno dash recarga el dash
+            Emit(SimEventType.Catch, p.Id, pos: p.Pos, extra: (byte)(dashCatch ? 1 : 0));
         }
 
         void UpdateCap(CapState c, float dt)
@@ -460,6 +462,7 @@ namespace BoomerangFighters.Core
                     c.Pos += c.Vel * dt;
                     Arena.ResolveCircle(ref c.Pos, c.Radius);
                     c.Y = SimMath.Lerp(c.Y, 0.14f, MathF.Min(1f, dt * 10f));
+                    if (owner.Alive && c.T > CT.GroundAutoReturn) { Recall(c); break; } // nadie se queda desarmado para siempre
                     if (!owner.Alive)
                     {
                         c.Fade += dt;

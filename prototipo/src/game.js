@@ -146,6 +146,8 @@ class Cap {
       this.pos.x += this.vel.x * dt; this.pos.z += this.vel.z * dt;
       g.arena.resolveCircle(this.pos, this.radius);
       this.y = lerp(this.y, 0.14, dt * 10);
+      // regreso automático: nadie se queda desarmado para siempre
+      if (this.owner.alive && !this.ghost && this.t > T.cap.groundAutoReturn) { this.recall(); return; }
       if (!this.owner.alive) {
         this.fade += dt;
         if (this.fade > 1.2) { this.kill(); return; }
@@ -570,10 +572,11 @@ export class Game {
     p.toy.triggerThrow();
     sfx.throw(charge);
     if (p.power === 'serigrafia') {
-      for (const s of [-0.3, 0.3]) {
-        const a = Math.atan2(dir.z, dir.x) + s;
+      // "Tiraje": copias en fila sobre la misma línea, como impresiones de una plancha
+      for (const k of [1, 2]) {
+        const back = off - T.cap.tirajeGap * k;
         const g = new Cap(this, p, { ghost: true });
-        g.launch(p.pos.x + Math.cos(a) * off, p.pos.z + Math.sin(a) * off, Math.cos(a) * sp, Math.sin(a) * sp, out, null);
+        g.launch(p.pos.x + dir.x * back, p.pos.z + dir.z * back, dir.x * sp, dir.z * sp, out, null);
         this.caps.push(g);
       }
     }
@@ -628,6 +631,8 @@ export class Game {
     p.cap.hold();
     p.toy.triggerSquash(0.5);
     sfx.catch();
+    // atraparla en pleno dash recarga el dash (premia la habilidad)
+    if (p.dashT > 0) { p.dashCd = 0; this.float(p.pos.x, 2.2, p.pos.z, '¡RECARGA!', p.color.css); }
   }
 
   _capHits() {

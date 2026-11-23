@@ -48,7 +48,8 @@ namespace BoomerangFighters.Core
         public float GroundFriction = 6f;
         public float AimAssistAngle = 0.6f;
         public float AimAssistRange = 17f;
-        public float GhostSpread = 0.3f;     // Serigrafía: ángulo de las copias
+        public float TirajeGap = 0.85f;      // Serigrafía "Tiraje": separación de las copias en fila
+        public float GroundAutoReturn = 3f;  // la gorra tirada regresa sola a los 3 s
         public float HomingTurn = 4.5f;      // Tatuaje
         public float HomingRange = 11f;
         public float ExplosionRadius = 2.3f; // Tinta derramada
@@ -94,7 +95,7 @@ namespace BoomerangFighters.Core
     public enum PowerUp : byte
     {
         None = 0,
-        Serigrafia = 1, // triple tiro
+        Serigrafia = 1, // "tiraje": 2 copias en fila
         Tatuaje = 2,    // teledirigida
         Tinta = 3,      // explosiva
         Grafiti = 4,    // rastro que alenta
@@ -124,7 +125,7 @@ namespace BoomerangFighters.Core
         {
             switch (p)
             {
-                case PowerUp.Serigrafia: return "Triple tiro";
+                case PowerUp.Serigrafia: return "Tiraje";
                 case PowerUp.Tatuaje: return "Teledirigida";
                 case PowerUp.Tinta: return "Explosiva";
                 case PowerUp.Grafiti: return "Rastro de aerosol";

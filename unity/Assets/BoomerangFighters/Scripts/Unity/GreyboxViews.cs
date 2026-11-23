@@ -37,7 +37,8 @@ namespace BoomerangFighters.UnityView
             return go;
         }
 
-        public static readonly uint[] PlayerColors = { 0xFF6A2B, 0x22C7E8, 0xFFD23F, 0xE84393, 0x4CD964, 0x8E6CFF, 0xFFFFFF, 0x888888 };
+        // Paleta Okabe-Ito (apta para daltonismo). El color del jugador va en el aro y la gorra, nunca en la ropa.
+        public static readonly uint[] PlayerColors = { 0xE69F00, 0x56B4E9, 0xF0E442, 0xCC79A7, 0x009E73, 0x0072B2, 0xD55E00, 0xFFFFFF };
         public static readonly uint[] VinylColors = { 0xF3E4CF, 0x2F2F36, 0xBFE7FF, 0xFFD6E5, 0xB8F28A, 0xFF8F70 };
     }
 

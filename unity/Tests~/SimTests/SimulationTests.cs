@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -149,14 +150,48 @@ namespace BoomerangFighters.Tests
         }
 
         [Fact]
-        public void SerigrafiaLanzaTresGorras()
+        public void SerigrafiaTirajeLanzaCopiasEnFila()
         {
             var sim = new MatchSimulation(H.Config(2));
             H.SkipCountdown(sim);
             H.Place(sim, new Vec2(-6f, -5.5f), new Vec2(10f, 5.5f));
             sim.Players[0].Power = PowerUp.Serigrafia;
             H.Run(sim, 1, t => new[] { H.Throw(new Vec2(1, 0)), default });
-            Assert.Equal(2, sim.Caps.Count(c => c.Ghost && c.Lethal));
+            var ghosts = sim.Caps.Where(c => c.Ghost && c.Lethal).ToList();
+            Assert.Equal(2, ghosts.Count);
+            // misma línea y misma dirección que la gorra original
+            Assert.All(ghosts, g => { Assert.InRange(g.Pos.y, -5.51f, -5.49f); Assert.True(g.Vel.x > 0f && MathF.Abs(g.Vel.y) < 1e-3f); });
+            Assert.All(ghosts, g => Assert.True(g.Pos.x < sim.Players[0].Cap.Pos.x));
+        }
+
+        [Fact]
+        public void LaGorraTiradaRegresaSolaALos3Segundos()
+        {
+            var sim = new MatchSimulation(H.Config(2));
+            H.SkipCountdown(sim);
+            H.Place(sim, new Vec2(-6f, -5.5f), new Vec2(10f, 5.5f));
+            var cap = sim.Players[0].Cap;
+            cap.Mode = CapMode.Ground; cap.Pos = new Vec2(-1f, -5.5f); cap.Vel = Vec2.Zero; cap.T = 0f;
+            sim.Players[0].HasCap = false;
+            var ev = H.Run(sim, 60 * 3 + 90);
+            Assert.Contains(ev, e => e.Type == SimEventType.Recall && e.A == 0);
+            Assert.True(sim.Players[0].HasCap);
+        }
+
+        [Fact]
+        public void AtraparDuranteElDashRecargaElDash()
+        {
+            var sim = new MatchSimulation(H.Config(2));
+            H.SkipCountdown(sim);
+            H.Place(sim, new Vec2(-6f, -5.5f), new Vec2(10f, 5.5f));
+            var p0 = sim.Players[0];
+            var cap = p0.Cap;
+            cap.Mode = CapMode.Ground; cap.Pos = new Vec2(-4.6f, -5.5f); cap.Vel = Vec2.Zero; cap.T = 0f;
+            p0.HasCap = false;
+            var dash = new InputCommand { Move = new Vec2(1, 0), Buttons = InputButtons.DashPressed };
+            var ev = H.Run(sim, 8, t => t == 0 ? new[] { dash, default } : new[] { new InputCommand { Move = new Vec2(1, 0) }, default });
+            Assert.Contains(ev, e => e.Type == SimEventType.Catch && e.A == 0 && e.Extra == 1);
+            Assert.True(p0.DashCd <= 0f);
         }
 
         [Fact]
