@@ -8,7 +8,7 @@ import { SPECIES } from './characters.js';
 import { SHIRT_DESIGNS, shirtThumb } from './textures.js';
 import {
   progress, xpNeeded, recordMatch, dailyStatus, claimDaily,
-  buyShirt, equip, redeemCode, SPECIES_UNLOCK,
+  buyShirt, equip, redeemCode, SPECIES_UNLOCK, playerId,
 } from './progress.js';
 import { sfx, initAudio, ensureMusic, setMusic, setSfx, audioState } from './audio.js';
 import { KeyboardController, GamepadController, TouchController, connectedGamepads } from './input.js';
@@ -238,6 +238,7 @@ export class UI {
   renderWardrobe() {
     const p = progress();
     $('#w-coins').textContent = p.coins.toLocaleString('es-MX');
+    $('#w-player-id').textContent = playerId();
     const grid = $('#w-shirts');
     grid.innerHTML = Object.entries(SHIRT_DESIGNS).map(([id, d]) => {
       const owned = p.owned.includes(id);

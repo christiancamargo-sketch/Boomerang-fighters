@@ -18,7 +18,8 @@ const DEMO_CODES = {
 
 // Diseño exclusivo que solo se obtiene con código (simula la playera física)
 SHIRT_DESIGNS['edicion-limitada'] = {
-  name: 'Edición Limitada 001', price: 0, rarity: 'Solo con código', codeOnly: true,
+  // Regla 3.1.3(b) de Apple: lo que se canjea con la prenda física también se vende en el juego.
+  name: 'Edición Limitada 001', price: 600, rarity: 'Edición limitada · también con la playera física',
   paint(ctx, W, H) {
     ctx.fillStyle = '#0d0d0f'; ctx.fillRect(0, 0, W, H);
     const g = ctx.createLinearGradient(0, H * 0.3, W, H * 0.8);
@@ -156,6 +157,17 @@ export function redeemCode(raw) {
   data.equipped.shirt = shirt;
   save();
   return { ok: true, shirt, msg: `Desbloqueaste "${SHIRT_DESIGNS[shirt].name}" y ya la traes puesta.` };
+}
+
+// ID de jugador que se escribe en el portal web de canje (GDD §11.5)
+export function playerId() {
+  if (!data.playerId) {
+    const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const letter = () => abc[Math.floor(Math.random() * abc.length)];
+    data.playerId = `GZ-${Math.floor(1000 + Math.random() * 9000)}-${letter()}${letter()}`;
+    save();
+  }
+  return data.playerId;
 }
 
 export function resetProgress() {

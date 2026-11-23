@@ -427,7 +427,7 @@ Fórmula: **XP para pasar del nivel *n* al *n*+1 = 150 + 50 × (*n* − 1)**. De
 | 3 | 250 | 350 | 1 | Color de tinta para el objeto · aviso "Protege tu progreso" |
 | 4 | 300 | 600 | 1–2 | 200 Gotas |
 | 5 | 350 | 900 | 2 | **Muñequito nuevo** + 25 TD |
-| 6 | 400 | 1,250 | 3 | *Sticker* para el frisbee |
+| 6 | 400 | 1,250 | 3 | *Sticker* para la gorra |
 | 7 | 450 | 1,650 | 4 | 300 Gotas |
 | 8 | 500 | 2,100 | 4–5 | Estela de tinta "Salpicón" |
 | 9 | 550 | 2,600 | 5–6 | 300 Gotas |
@@ -461,7 +461,7 @@ El ritmo da **un premio en cada nivel durante la primera semana**, nivel 10 en ~
 
 **Diarias** (3 al azar de una lista, con 1 cambio gratis; 200 XP de pase + 30 Gotas cada una):
 - Juega 3 partidas.
-- Consigue 5 KO **con el regreso** del objeto, es decir, golpear de espaldas al rival cuando el frisbee vuelve.
+- Consigue 5 KO **con el regreso** del objeto, es decir, golpear de espaldas al rival cuando la gorra vuelve.
 - Atrapa tu objeto 10 veces.
 - Gana 1 partida en la **Calle Grafiteada**.
 - Recoge 3 *power-ups* de **Tinta Derramada**.
@@ -480,6 +480,8 @@ El ritmo da **un premio en cada nivel durante la primera semana**, nivel 10 en ~
 **Reto del artista invitado** (5 retos por temporada diseñados con el artista; premio: su *sticker* y el marco "Firma del artista").
 
 ### 9.6 Pase de temporada (40 niveles, 6 semanas)
+
+> **Nota de consolidación (23-nov-2026):** el diseño final (`docs/GDD.md` §10.6) fija temporadas de **8 semanas** con 2,000 XP de pase por nivel (80,000 en total), que quien juega diario termina en ~6 semanas. Las cifras de abajo son la propuesta original de este reporte (ver síntesis 00, C19).
 
 - **Duración:** 6 semanas. Cada temporada se dedica a una técnica de tinta: T1 Grafiti → T2 Tatuaje → T3 Serigrafía → T4 *Sticker* → T5 Bordado → T6 Tinta derramada. Así sale **un año de contenido con un hilo de marca**.
 - **Precio:** premium = **450 TD (≈ $89 MXN)**, también vendible como compra directa.

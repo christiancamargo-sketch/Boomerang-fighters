@@ -7,7 +7,7 @@
 export const GAME_INFO = {
   // Nombre de trabajo. Se cambia en un solo lugar cuando se elija el definitivo.
   title: 'GORRAZO',
-  tagline: 'Lanza tu gorra. Mancha a todos.',
+  tagline: 'Lanza tu gorra, mancha a todos',
   version: 'prototipo 0.1',
 };
 
@@ -129,7 +129,7 @@ export const DIFFICULTY = {
 
 // Progresión de ejemplo (en el juego real esto vive en el backend).
 export const PROGRESSION = {
-  xpForLevel: (lvl) => 100 + (lvl - 1) * 60,
+  xpForLevel: (lvl) => 150 + (lvl - 1) * 50, // curva del GDD §10.2
   rewards: {
     participate: 20,
     roundWin: 10,

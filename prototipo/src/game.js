@@ -159,7 +159,7 @@ class Cap {
       this.trailT -= dt;
       if (this.trailT <= 0) {
         this.trailT = 0.035;
-        g.arena.spray(this.pos.x, this.pos.z, '#00e676');
+        g.arena.spray(this.pos.x, this.pos.z, this.owner.color.css); // el rastro siempre es del color del jugador
         g.paintPatches.push({ x: this.pos.x, z: this.pos.z, r: 0.65, owner: this.owner, life: 4.5 });
       }
     }
@@ -834,7 +834,8 @@ export class Game {
     const group = new THREE.Group();
     // lata de aerosol del color de la técnica
     const can = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.6, 14), toon(def.color));
+    // latas negro tinta + blanco hueso: nunca de los colores de jugador (GDD §9)
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.6, 14), toon(0x1c1b20));
     const band = new THREE.Mesh(new THREE.CylinderGeometry(0.225, 0.225, 0.16, 14), toon(0xffffff));
     band.position.y = 0.05;
     const top = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), toon(0xbdbdbd));
@@ -843,9 +844,9 @@ export class Game {
     nozzle.position.y = 0.5;
     can.add(body, band, top, nozzle);
     can.rotation.z = 0.25;
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.62, 28), new THREE.MeshBasicMaterial({ color: def.color === 0x1a1a1a ? 0x9aa0a6 : def.color, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }));
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.62, 28), new THREE.MeshBasicMaterial({ color: 0xf4f1ea, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2; ring.position.y = -0.5;
-    const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture(def.name.toUpperCase(), def.css), depthWrite: false, transparent: true }));
+    const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture(`${def.glyph} ${def.name.toUpperCase()}`, '#f4f1ea'), depthWrite: false, transparent: true }));
     label.scale.set(2.2, 0.55, 1); label.position.y = 0.95;
     group.add(can, ring, label);
     group.position.set(pos.x, 0.55, pos.z);
@@ -861,9 +862,9 @@ export class Game {
       p.shield = true;
     } else {
       p.power = type;
-      p.toy.setPower(def.color === 0x1a1a1a ? 0x9aa0a6 : def.color);
+      p.toy.setPower(0xf4f1ea); // el poder se lee por el efecto en la gorra y el aro blanco, no por color
     }
-    this.float(p.pos.x, 2.6, p.pos.z, `${def.name.toUpperCase()} · ${def.effect}`, def.css);
+    this.float(p.pos.x, 2.6, p.pos.z, `${def.glyph} ${def.name.toUpperCase()} · ${def.effect}`, '#f4f1ea');
     this.hooks.onPowerup?.(p, def);
   }
 
