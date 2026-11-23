@@ -16,7 +16,7 @@ Cada dato lleva una etiqueta según qué tan seguro es:
 | 📄 **De otro reporte** | Viene de los reportes 01–04 de esta misma investigación, que sí consultaron la fuente original. Doy esa URL. |
 | ⚠️ **Conocimiento previo** | No lo pude confirmar hoy. Es información que yo conocía hasta mediados de 2026. **Hay que verificarlo antes de decidir.** |
 
-**Limitación honesta:** durante esta investigación se agotó el presupuesto de búsquedas web de la sesión y el entorno no permite abrir `support.google.com` ni Wikipedia. Por eso **todo lo de Apple está verificado en fuente oficial, pero casi todo lo de Google Play viene de conocimiento previo** y está marcado con ⚠️. Para confirmarlo hay que permitir `support.google.com` en la configuración de red de la sesión, o pedirme una segunda ronda de búsqueda.
+**Limitación honesta:** durante esta investigación se agotó el presupuesto de búsquedas web de la sesión y el entorno no permite abrir `support.google.com` ni Wikipedia. Por eso **todo lo de Apple está verificado en fuente oficial, pero casi todo lo de Google Play viene de conocimiento previo** y está marcado con ⚠️. Para confirmarlo hay que permitir `support.google.com` en la configuración de red de la sesión, o pedirme una segunda ronda de búsqueda. *(Una revisión independiente del 23-nov-2026 corrigió y confirmó varios datos. Ver la sección final **"Verificación de datos (2026-11-23)"**.)*
 
 **Esto no es asesoría fiscal ni legal.** La parte de impuestos describe cómo funciona el sistema para que la conversación con el contador sea más productiva.
 
@@ -105,10 +105,10 @@ Cada dato lleva una etiqueta según qué tan seguro es:
 | **Brasil** (iOS 26.5+, acuerdo con CADE) | 21% + 5%; Small Business 10% + 5% = **15%** | 21% / 10% | 15% / 10% (7 días) | ✅ [Apple Brasil](https://developer.apple.com/support/app-distribution-in-brazil/) |
 | **China** (desde 15-mar-2026) | 25% / **12%** | — | — | ✅ [News](https://developer.apple.com/news/) |
 | **Taiwán** (desde 31-oct-2026) | 26% estándar | — | — | ✅ [News](https://developer.apple.com/news/) |
-| **Corea del Sur** | 30% / 15% | ~26% / ~12% (4 puntos menos) | — | ⚠️ |
-| **Países Bajos** | — | Solo apps de citas | — | ✅ [Apple NL](https://developer.apple.com/support/storekit-external-entitlement/) |
+| **Corea del Sur** | 30% / 15% | **26%** sobre el precio que paga el usuario. Solo apps de iOS/iPadOS en la tienda de Corea y con PSP aprobados (KCP, Inicis, Toss, NICE). La página de Apple **no publica** una tasa reducida para Small Business *(corregido 23-nov-2026; antes decía "~26% / ~12%")* | — | ✅ [Apple Corea](https://developer.apple.com/support/storekit-external-entitlement-kr/) |
+| **Países Bajos** | — | Solo apps de citas (la comisión baja 3 puntos) | — | ✅ [Apple NL](https://developer.apple.com/support/storekit-external-entitlement/) |
 
-**Nota sobre EE.UU. (Epic v. Apple)** ⚠️: el 30-abr-2025 una jueza federal declaró a Apple en desacato y le prohibió cobrar comisión por las compras hechas mediante enlaces externos en apps de EE.UU. Apple cambió sus guías el 1-may-2025 ✅. Hasta donde sé, a fines de 2025 la corte de apelaciones confirmó el desacato, pero abrió la puerta a que Apple cobre en el futuro alguna comisión "razonable" sobre esas compras, y regresó el tema al juzgado. **Hoy las guías dicen que en EE.UU. no se necesita permiso para poner enlaces** ✅. Si debe pagarse algún porcentaje hay que confirmarlo justo antes de lanzar allá. **Para México no cambia nada.**
+**Nota sobre EE.UU. (Epic v. Apple)** ⚠️: el 30-abr-2025 una jueza federal declaró a Apple en desacato y le prohibió cobrar comisión por las compras hechas mediante enlaces externos en apps de EE.UU. Apple cambió sus guías el 1-may-2025 ✅. Hasta donde sé, a fines de 2025 la corte de apelaciones confirmó el desacato, pero abrió la puerta a que Apple cobre en el futuro alguna comisión "razonable" sobre esas compras, y regresó el tema al juzgado. **Hoy las guías dicen que en EE.UU. no se necesita permiso para poner enlaces** ✅. La última actualización de la regla 3.1.1(a), del 16-oct-2026, lo mantiene. Revisé las noticias de Apple de 2025 y 2026 el 23-nov-2026 y **ninguna anuncia una comisión sobre compras enlazadas en EE.UU.** ✅. Aun así, la decisión de la apelación sigue ⚠️ sin verificar, así que hay que confirmar si se paga algún porcentaje justo antes de lanzar allá. **Para México no cambia nada.**
 
 **Otros cambios útiles de Apple** ✅ ([News](https://developer.apple.com/news/)):
 - **29-oct-2025:** los **Offer Codes** ya cubren **todos** los tipos de compra dentro de la app, incluidos consumibles y no consumibles, es decir, trajes. Los antiguos *promo codes* de compras dentro de la app **ya no se pueden crear desde el 26-mar-2026**.
@@ -121,8 +121,9 @@ Cada dato lleva una etiqueta según qué tan seguro es:
 |---|---|---|
 | Comisión base | **15% sobre el primer USD 1 M** de ingresos de cada año (hay que crear un "grupo de cuentas"); 30% arriba de eso | ⚠️ Alta |
 | Suscripciones | 15% desde el primer día | ⚠️ Alta |
-| *User Choice Billing* | Facturación alterna con ~4 puntos menos, en países como el EEE, Corea, India, Japón e Indonesia. **No confirmé que aplique a México** | ⚠️ |
-| EE.UU. (Epic v. Google) | Desde oct-2025 la orden judicial obliga a Google a permitir enlaces y facturación alterna en EE.UU. En nov-2025 Epic y Google anunciaron un acuerdo propuesto con topes de comisión de ~9% / 20% y "tiendas registradas". **No sé si el juez ya lo aprobó** | ⚠️ Media |
+| *User Choice Billing* | Facturación alterna con ~4 puntos menos, en países como el EEE, Corea, India, Japón e Indonesia. **No confirmé que aplique a México** (la lista de países está en support.google.com, que sigue bloqueado). La documentación oficial **sí confirma** que el reporte manual de estos programas se está retirando y que hay que migrar a las APIs | ⚠️ (países) / ✅ (programa) [Android](https://developer.android.com/google/play/billing/alternative) |
+| Programas nuevos 2025–2026 | La documentación de Play Billing confirma: **external content links**, que permite enlazar a usuarios **de EE.UU.** a ofertas digitales fuera de la app (APIs del 9-dic-2025); **external payments para Japón** (23-dic-2025); y un programa nuevo de **"billing choice"** (18-jun-2026) que muestra al usuario una pantalla para elegir entre Google Play Billing y la facturación del desarrollador, dentro de la app o en su web. Esa página **no dice en qué países aplica ni cuánto cobra**. Las comisiones de estos programas tampoco se pudieron ver | ✅ existencia ([US links](https://developer.android.com/google/play/billing/externalcontentlinks/integration), [Japón](https://developer.android.com/google/play/billing/externalpaymentlinks), [billing choice](https://developer.android.com/google/play/billing/billingchoice), [notas de versión](https://developer.android.com/google/play/billing/release-notes)) / ⚠️ países y comisiones |
+| EE.UU. (Epic v. Google) | Desde oct-2025 la orden judicial obliga a Google a permitir enlaces y facturación alterna en EE.UU. El programa de *external content links* para EE.UU. que aparece en la documentación oficial es congruente con eso ✅. En nov-2025 Epic y Google anunciaron un acuerdo propuesto con topes de comisión de ~9% / 20% y "tiendas registradas". **No sé si el juez ya lo aprobó** | ⚠️ Media |
 | Pago en efectivo | Google Play acepta **efectivo en OXXO y 7-Eleven** desde la app, y vende tarjetas de regalo de MXN 100 a 5,000 en OXXO, Walmart, Soriana y otras | 📄 ([Ayuda Google Play](https://support.google.com/googleplay/answer/9462077?hl=es-419), [tarjetas](https://support.google.com/googleplay/answer/3422734?hl=es)) |
 
 **Ventaja para México:** Google Play ya cobra en efectivo en OXXO dentro de la app 📄, así que en Android **no hace falta** una web propia para alcanzar al jugador sin tarjeta.
@@ -196,14 +197,14 @@ Una *web shop* es una página donde el jugador compra moneda o paquetes del jueg
 | Si publican como… | Retención de la plataforma | Qué pagan |
 |---|---|---|
 | **Persona moral** (empresa, S.A.P.I., S.A. de C.V.) ✅ recomendado | Apple **no retiene ISR** ✅ | ISR de 30% sobre la utilidad (régimen general) ⚠️, más IVA mensual |
-| **Persona física** con actividad en plataformas | Apple **sí retiene ISR** sobre las ventas mensuales ✅. La Ley del ISR (art. 113-A) fija **1%** para venta de bienes y servicios por plataformas; Apple no publica la tasa ⚠️ | Además, la retención de IVA aplicable ⚠️ |
+| **Persona física** con actividad en plataformas | Apple **sí retiene ISR** sobre las ventas mensuales ✅. La Ley del ISR (art. 113-A) fijaba **1%** para venta de bienes y servicios por plataformas, y Apple no publica la tasa ⚠️. **Alerta (23-nov-2026):** según conocimiento previo, el Paquete Económico 2026 propuso subir esa retención a **2.5%**. No se pudo comprobar en el DOF si se aprobó y está vigente, así que el contador debe confirmar la tasa de 2026 | Además, la retención de IVA aplicable ⚠️ |
 
 **Recomendación:** publicar con la **persona moral** que vaya a ser dueña del juego y de la propiedad intelectual: INKCAP, el estudio VR o una nueva empresa conjunta. Hay que revisar dos cosas: (1) si sus ingresos más financiamiento superan USD 200 mil, Unity exige licencia Pro de USD 2,310 por puesto al año 📄 ([reporte 03](https://unity.com/products/pricing-updates)); (2) las **cuentas asociadas** del Small Business Program de Apple.
 
 ### 4.3 Facturación (CFDI)
 
 - Las ventas a jugadores anónimos se documentan normalmente con un **CFDI global a "público en general"**, diario, mensual o bimestral según el régimen ⚠️. El contador debe conciliar estos CFDI con los reportes financieros de Apple y Google.
-- Las facturas de comisión de Apple vienen de una entidad extranjera (para LATAM es Apple Services LATAM LLC, Florida ✅ según [Apple – Understanding taxes](https://developer.apple.com/help/app-store-connect/making-payments-to-apple/understanding-taxes)). No son CFDI, así que hay que confirmar con el contador cómo **deducirlas y acreditarlas** ⚠️.
+- Las facturas de comisión de Apple vienen de una entidad extranjera, no de una mexicana. Para LATAM es Apple Services LATAM LLC, en Coral Gables, Florida ✅ ([Apple – Understanding taxes](https://developer.apple.com/help/app-store-connect/making-payments-to-apple/understanding-taxes)). **Matiz (23-nov-2026):** la tabla vigente de esa página se refiere a los anexos 12 y 14 del contrato, que cubren los términos alternos, y no nombra a México de forma explícita. México sí aparece junto con LATAM en la tabla antigua (ya marcada como obsoleta). Hay que confirmar qué entidad emite la "Commission Invoice" de México en Tax Statements. Como no son CFDI, el contador debe confirmar cómo **deducirlas y acreditarlas** ⚠️.
 - Las ventas a jugadores **de otros países** pueden calificar como exportación de servicios con IVA de 0% ⚠️.
 
 ### 4.4 Cómo llega el dinero
@@ -339,16 +340,22 @@ Fuente Apple: [Overview of receiving payments](https://developer.apple.com/help/
 | **3.1.3(b)** | Acceso en la app a lo adquirido "on other platforms or your web site… **provided those items are also available as in-app purchases**" | ✅ El traje canjeado en la web aparece en la cuenta, **siempre que ese traje también se venda dentro de la app** |
 | **3.1.3(e)** | "If your app enables people to purchase **physical goods**… you **must** use purchase methods other than in-app purchase" | ✅ Vender playeras desde la app está permitido, sin comisión de Apple |
 | **3.1.3** | Comunicar fuera de la app otros métodos de compra está permitido | ✅ Etiquetas, redes y podcast pueden promover el canje |
+| **3.1.4** | "App features that work in combination with an approved **physical product (such as a toy)** on an optional basis may unlock functionality without using in-app purchase, provided that an in-app purchase option is available as well" | ✅ *(Agregado el 23-nov-2026.)* Un **art toy** que **interactúe** con la app, por ejemplo con un chip NFC, podría desbloquear su traje sin IAP si ese traje también se vende dentro de la app. Una playera con código impreso **no** es un producto que funcione junto con la app; ese caso sigue cayendo en la 3.1.1. "Approved" sugiere que Apple debe aprobar el producto, así que hay que consultarlo con App Review |
 | **Offer Codes** | Códigos oficiales de Apple, gratis o con descuento, para cualquier compra dentro de la app | ✅ Alternativa 100% dentro de las reglas (detalle abajo) |
 | **NFT** | Se pueden mostrar, pero "NFT ownership does not unlock features or functionality" | ❌ No usar NFT para desbloquear trajes |
 
 **Offer Codes de Apple** ✅ ([Apple](https://developer.apple.com/help/app-store-connect/manage-in-app-purchases/create-offer-codes-for-in-app-purchases)):
 - **Hasta 1 millón de códigos por app cada trimestre** y hasta 10 ofertas activas a la vez.
 - Códigos de un solo uso en lotes de **500 a 25,000**, o códigos personalizados (tipo "INKCAPTINTA") con un límite de canjes que tú defines.
-- Se canjean con enlace, en el App Store o **dentro de la app con el sistema de Apple** (requiere iOS 16.3 o superior).
+- Se canjean con enlace, en el App Store o **dentro de la app con el sistema de Apple** (requiere iOS 16.3 o superior). Los códigos personalizados **no** se canjean en el App Store: solo con enlace o dentro de la app ✅.
 - **Límite importante:** los de un solo uso **caducan en máximo 6 meses**. Una playera puede pasar más tiempo en inventario. Los personalizados pueden no tener fecha de caducidad.
 - El traje debe existir como compra dentro de la app **aprobada** y la app debe estar publicada.
-- **Solo funcionan en iOS.** Para Android se necesita el equivalente de Google: *promo codes* de Play Console, con límites por trimestre que no pude verificar ⚠️.
+- **Solo funcionan en iOS.** Para Android se necesita el equivalente de Google: los *promo codes* de Play Console ✅ ([Android – Promo codes](https://developer.android.com/google/play/billing/promo)), verificados el 23-nov-2026:
+  - Para productos únicos, como trajes o paquetes, el límite es de **500 códigos por trimestre en total por app**, sumando todos los productos. Los que no se usan en el trimestre se pierden.
+  - Los códigos personalizados reutilizables **solo existen para suscripciones**, que pueden tener hasta 10,000 códigos de un solo uso por trimestre por producto.
+  - Una promoción dura **máximo 1 año**.
+  - Se canjean dentro de la app, desde la pantalla de compra de Google Play, o en la Play Store.
+  - **Conclusión:** 500 códigos al trimestre alcanzan para eventos, **no para un tiraje de playeras**. En Android también conviene el **canje en la web propia**.
 
 **Google Play** ⚠️: los bienes físicos se cobran fuera de Google Play Billing (obligatorio). Para canjear códigos propios dentro de la app, la práctica común en Android (Pokémon GO lo hace) sugiere que está permitido, pero **hay que confirmarlo en la política de pagos de Google**.
 
@@ -361,7 +368,7 @@ Fuente Apple: [Overview of receiving payments](https://developer.apple.com/help/
 | **Fortnite – skins por comprar celulares** (Samsung, Honor) | El dispositivo físico desbloquea una skin | Una marca puede regalar la skin con su producto | ⚠️ |
 | **Pokémon GO – códigos promocionales** | En Android se canjean dentro de la app; **en iOS se canjean en una página web** | **Es exactamente la regla 3.1.1 aplicada** | ⚠️ |
 | **Pokémon TCG Live** | Las cartas físicas traen códigos digitales | La mercancía física impulsa el juego digital | ⚠️ |
-| **Skylanders (iPad, 2014)** | Figuras físicas con chip desbloquean personajes (*toys-to-life*) | Precedente de juguete + juego (hoy sería zona gris) | ⚠️ |
+| **Skylanders (iPad, 2014)** | Figuras físicas con chip desbloquean personajes (*toys-to-life*) | Precedente de juguete + juego. **Corrección (23-nov-2026):** no es zona gris. La regla **3.1.4** de Apple lo permite expresamente si el uso es opcional, el producto está aprobado y existe también la opción de compra dentro de la app ✅ | ⚠️ (caso) / ✅ (regla) |
 | **Call of Duty / Halo × Mountain Dew y Doritos** | Códigos en el empaque dan doble XP y artículos | Botanas y bebidas como canal; nosotros, playeras | ⚠️ |
 | **Nike (Nikeland) y Vans (Vans World) en Roblox** | Mundos de marca con ropa virtual | Las marcas de ropa sí invierten en esto | ⚠️ |
 | **Forever 21 en Roblox** | Gorro virtual vendido 1.5 M veces y **después** fabricado | **De lo digital a lo físico:** el traje más popular se vuelve playera 📄 | 📄 |
@@ -375,7 +382,7 @@ Fuente Apple: [Overview of receiving payments](https://developer.apple.com/help/
 4. **El mismo traje también se vende dentro de la app** (por ejemplo, la versión digital a MXN 79). La versión **"Edición Física"**, con un detalle extra como el bordado brillante o una estela de tinta, puede ser exclusiva de la playera. **Hay que validar esta exclusividad con App Review antes del primer drop.**
 5. **En Android** se puede agregar además una casilla "Canjear código" dentro de la app, si Google lo confirma ⚠️. **En iOS, no**, salvo con Offer Codes de Apple.
 6. **Antifraude:** límite de intentos, invalidar el código si la playera se devuelve, y en compras en línea enviar el código por correo **después** del pago (OXXO confirma el pago en horas).
-7. **Para campañas cortas** (eventos, lanzamientos): usar **Offer Codes de Apple** y *promo codes* de Google. El QR lleva a una web que detecta el sistema operativo y entrega el código correcto.
+7. **Para campañas cortas** (eventos, lanzamientos): usar **Offer Codes de Apple** (hasta 1 millón por trimestre) y *promo codes* de Google (**solo 500 por trimestre** para productos únicos ✅). El QR lleva a una web que detecta el sistema operativo y entrega el código correcto.
 
 ### 7.4 Al revés: vender merch desde el juego
 
@@ -448,7 +455,7 @@ Facilidad: 5 = muy fácil. Impacto: 5 = muy alto.
 | 16 | **Colaboraciones con marcas o IP** (al estilo Free Fire) | 2 | 5 | Etapa 3–4 |
 | 17 | **Torneos en eventos de arte urbano** con premios de patrocinadores | 3 | 2 (marca) | Inscripción gratis para evitar permisos ⚠️ |
 | 18 | **"El traje más votado se hace playera"** (digital → físico, modelo Forever 21) | 3 | 4 | Reduce el riesgo de inventario |
-| 19 | **Art toy físico con código** del muñequito | 2 | 4 | Para coleccionistas; edición numerada |
+| 19 | **Art toy físico con código** del muñequito | 2 | 4 | Para coleccionistas; edición numerada. Con chip NFC que interactúe con la app podría acogerse a la regla 3.1.4 de Apple (ver §7.1) |
 | 20 | **Web shop con OXXO y Mercado Pago** para paquetes de tinta | 2 | 2 (año 1) / 4 (año 3) | Cuando haya volumen o al lanzar en EE.UU. |
 | 21 | **Fondos no reembolsables** (Indie Games Fund) y propuestas a Netflix Games | 3 | 4 (caja) | US$150–200 mil 📄 |
 | 22 | **Versión premium en Switch o Steam** con DLC de artistas | 2 | 3 | El modelo de Boomerang Fu |
@@ -508,7 +515,8 @@ Facilidad: 5 = muy fácil. Impacto: 5 = muy alto.
 
 ## 12. Dudas abiertas (qué falta confirmar)
 
-- **Google Play:** comisión vigente, programas de pago alterno, trato fiscal a desarrolladores mexicanos (IVA e ISR), límites de *promo codes* y si permite canjear códigos propios dentro de la app. *No pude abrir support.google.com.*
+- **Google Play:** comisión vigente, en qué países aplican los programas de pago alterno (incluido el nuevo *billing choice* de jun-2026) y cuánto cobran, trato fiscal a desarrolladores mexicanos (IVA e ISR) y si permite canjear códigos propios dentro de la app. *No pude abrir support.google.com.* (Los límites de *promo codes* **ya se verificaron** el 23-nov-2026: 500 por trimestre para productos únicos.)
+- **ISR a personas físicas por plataformas:** si en 2026 la retención del art. 113-A subió de 1% a 2.5%.
 - **EE.UU.:** si Apple ya cobra alguna comisión sobre compras enlazadas tras la apelación de Epic v. Apple, y si se aprobó el acuerdo Epic–Google.
 - **Exclusividad phygital en iOS:** si un traje que **solo** se obtiene con la playera, sin versión en la app, cumple la 3.1.3(b). Consultar a App Review.
 - **Tasas exactas de ISR e IVA** que Apple retiene a personas físicas en México (Apple no las publica).
@@ -537,6 +545,15 @@ Facilidad: 5 = muy fácil. Impacto: 5 = muy alto.
 - DMA y apps en la UE: https://developer.apple.com/support/dma-and-apps-in-the-eu/
 - StoreKit External Purchase (Países Bajos): https://developer.apple.com/support/storekit-external-entitlement/
 - Apple Arcade: https://developer.apple.com/apple-arcade/
+- *(Agregadas en la verificación del 23-nov-2026)* StoreKit External Purchase en Corea: https://developer.apple.com/support/storekit-external-entitlement-kr/ · Página inexistente de México (Page Not Found): https://developer.apple.com/support/app-distribution-in-mexico/
+
+**Verificadas el 23-nov-2026 en developer.android.com (Google)**
+- Promo codes de Google Play: https://developer.android.com/google/play/billing/promo
+- Facturación alterna (aviso de retiro del reporte manual): https://developer.android.com/google/play/billing/alternative
+- External content links (EE.UU.): https://developer.android.com/google/play/billing/externalcontentlinks/integration
+- External payments (Japón): https://developer.android.com/google/play/billing/externalpaymentlinks
+- Billing choice: https://developer.android.com/google/play/billing/billingchoice
+- Notas de versión de Play Billing Library (fechas de los programas): https://developer.android.com/google/play/billing/release-notes
 
 **Tomadas de los reportes 01–04 de esta investigación (fuente original)**
 - Tipo de cambio: https://dolar.info/mexico/hoy/precio/banxico-fix.php
@@ -560,4 +577,76 @@ Facilidad: 5 = muy fácil. Impacto: 5 = muy alto.
 - Pagos en México (OXXO Pay, métodos de pago): https://www.rebill.com/en/blog/oxxo-pay-cash-is-king-in-the-mexican-market · https://www.antom.com/guides/markets/mexico
 - Mercado de videojuegos en México y LATAM: https://www.diariodetabasco.mx/negocios/2026/08/27/ingresos-de-la-industria-de-videojuegos-superaran-los-43-mil-500-mdp-en-mexico-the-ciu/ · https://gamesbeat.com/latin-america-defies-game-stagnation-with-372-3m-players-and-8-3b-in-2025-revenues/
 
-**Marcado como ⚠️ conocimiento previo (sin URL verificada hoy):** comisiones y programas de Google Play, Epic v. Apple (apelación) y Epic v. Google (acuerdo), Corea, tarifas de Xsolla, Stripe, Mercado Pago, Stash, Appcharge y Coda, Ley del IVA (Capítulo III Bis), artículo 113-A de la Ley del ISR, tratado México–EE.UU., IEPS a videojuegos 2026, eCPM de EE.UU., benchmarks de ARPDAU, conversión, ARPPU y LTV, precios de pases y skins en otros juegos, y los ejemplos phygital de Roblox, Fortnite, Pokémon, Skylanders, Call of Duty, Nike y Vans.
+**Marcado como ⚠️ conocimiento previo (sin URL verificada hoy):** comisiones y programas de Google Play, Epic v. Apple (apelación) y Epic v. Google (acuerdo), tarifas de Xsolla, Stripe, Mercado Pago, Stash, Appcharge y Coda, Ley del IVA (Capítulo III Bis), artículo 113-A de la Ley del ISR, tratado México–EE.UU., IEPS a videojuegos 2026, eCPM de EE.UU., benchmarks de ARPDAU, conversión, ARPPU y LTV, precios de pases y skins en otros juegos, y los ejemplos phygital de Roblox, Fortnite, Pokémon, Skylanders, Call of Duty, Nike y Vans.
+
+---
+
+## Verificación de datos (2026-11-23)
+
+**Cómo se hizo y sus límites.** Una revisión independiente releyó el reporte completo y volvió a comprobar los datos de alto riesgo: comisiones, límites, reglas de las tiendas, leyes y fechas. El presupuesto de búsquedas web de la sesión **ya estaba agotado**, así que no se hizo ninguna búsqueda nueva. Solo se pudieron abrir directamente páginas oficiales de **developer.apple.com** y **developer.android.com**. Estos dominios no están permitidos en la red de la sesión: support.google.com, play.google.com, blog.google, android-developers.googleblog.com, unity.com, stripe.com, xsolla.com, mercadopago.com.mx, diputados.gob.mx, dof.gob.mx, sat.gob.mx y fortnite.com. Todo lo que depende de ellos queda **sin verificar**, lo que no significa que esté mal. Para verificarlo hay que permitir esos dominios o ampliar el límite de búsquedas.
+
+### Corregido
+
+| # | Qué decía | Qué es correcto | Fuente |
+|---|---|---|---|
+| 1 | Corea: pago alterno "~26% / ~12% (4 puntos menos)" ⚠️ | **26%** sobre el precio que paga el usuario. Solo iOS/iPadOS en la tienda de Corea, con PSP aprobados (KCP, Inicis, Toss, NICE). La página oficial **no publica una tasa de 12%** para Small Business | [Apple Corea](https://developer.apple.com/support/storekit-external-entitlement-kr/) |
+| 2 | Promo codes de Google: "límites por trimestre que no pude verificar" | **500 códigos por trimestre por app** para productos únicos, sumando todos. Los códigos personalizados son **solo para suscripciones**. Una promoción dura máximo **1 año**. Se canjean en la app o en Play Store. **No sirven para un tiraje de playeras** | [Android – Promo codes](https://developer.android.com/google/play/billing/promo) |
+| 3 | Skylanders / juguetes con chip: "hoy sería zona gris" | La regla **3.1.4** de Apple permite que un **producto físico aprobado (como un juguete)** desbloquee funciones sin IAP, de forma opcional, si también existe la compra dentro de la app. Se agregó a la tabla de §7.1 y a la idea #19. La playera con código impreso **sigue** bajo la 3.1.1 | [App Review Guidelines 3.1.4](https://developer.apple.com/app-store/review/guidelines/) |
+| 4 | Google Play: solo *User Choice Billing* en algunos países | Además existen: **external content links** para EE.UU. (APIs del 9-dic-2025), **external payments** para Japón (23-dic-2025) y un programa nuevo de **billing choice** (18-jun-2026). El reporte manual de la facturación alterna **se está retirando**. Países y comisiones: sin verificar | [Notas de versión PBL](https://developer.android.com/google/play/billing/release-notes), [alternative billing](https://developer.android.com/google/play/billing/alternative) |
+| 5 | ISR a personas físicas por plataformas: "1%" sin advertencia | Se agregó una **alerta**: según conocimiento previo, el Paquete Económico 2026 propuso subir la retención a **2.5%**. No se pudo comprobar en el DOF. *Es una advertencia, no un dato verificado* | Conocimiento previo ⚠️ |
+| 6 | Offer Codes: "se canjean con enlace, en el App Store o dentro de la app" | Correcto para los de un solo uso. Los **personalizados** solo se canjean con enlace o dentro de la app, **no en el App Store** | [Apple – Offer Codes](https://developer.apple.com/help/app-store-connect/manage-in-app-purchases/create-offer-codes-for-in-app-purchases) |
+| 7 | Apple Services LATAM LLC "según Understanding taxes" | La entidad y su domicilio (Coral Gables, Florida) son correctos. La tabla vigente de esa página se refiere a los anexos 12 y 14 (términos alternos) y **no nombra a México de forma explícita**; México solo aparece en la tabla antigua (obsoleta). Hay que confirmar quién emite la *Commission Invoice* de México | [Apple – Understanding taxes](https://developer.apple.com/help/app-store-connect/making-payments-to-apple/understanding-taxes) |
+
+### Confirmado con fuente oficial (23-nov-2026)
+
+- **Small Business Program:** 15% con **≤ USD 1 M de proceeds** el año calendario anterior, sumando las cuentas asociadas (más del 50% de propiedad o control de decisiones). Las cuentas nuevas califican. La tarifa aplica **15 días después del cierre del mes fiscal** en que te aprueban. Si se rebasa en el año, aplica la tarifa estándar, y se puede recalificar al año siguiente ([Apple](https://developer.apple.com/app-store/small-business-program/)).
+- **UE (desde 1-oct-2026):** IAP 26% / 15%; pago alterno 20% / 10%; enlace externo 15% / 10% (ventas dentro de 7 días del clic); CTC de 5% para apps distribuidas fuera del App Store ([Apple EU](https://developer.apple.com/support/dma-and-apps-in-the-eu/), noticia del 18-ago-2026).
+- **Japón (iOS 26.2+):** comisión de 21% (10% en Small Business) más 5% de procesamiento con IAP; enlace externo 15% / 10% dentro de 7 días; contrato aceptado antes del 17-mar-2026 ([Apple Japón](https://developer.apple.com/support/app-distribution-in-japan/)).
+- **Brasil (iOS 26.5+, acuerdo con el CADE):** 21% / 10% más 5% de procesamiento; pago alterno 21% / 10%; enlace externo 15% / 10% dentro de 7 días ([Apple Brasil](https://developer.apple.com/support/app-distribution-in-brazil/)).
+- **China** 25% / 12% desde el 15-mar-2026, y **Taiwán** con 26% estándar desde el 31-oct-2026 ([Apple News](https://developer.apple.com/news/)).
+- **Países Bajos:** solo apps de citas, con comisión 3 puntos menor.
+- **EE.UU.:** las guías permiten botones y enlaces externos sin *entitlement*. La regla 3.1.1(a) se actualizó el 16-oct-2026 y lo mantiene. Las noticias de Apple de 2025–2026 **no anuncian** ninguna comisión sobre compras enlazadas.
+- **México:** ninguna noticia de Apple de 2025–2026 menciona a México, y la URL de "distribución en México" da **"Page Not Found"**.
+- **Guías de Apple** (citas textuales revisadas): 3.1.1 (QR, claves, tarjetas de regalo digitales, regalos, probabilidades de cajas botín y NFT), 3.1.1(a), 3.1.2(a) (suscripción mínima de 7 días), 3.1.3, 3.1.3(b), 3.1.3(e) y 3.2.2(x).
+- **Noticias de Apple:** Offer Codes para todos los tipos de IAP (29-oct-2025); no se pueden crear promo codes de IAP desde el **26-mar-2026**; Mini Apps Partner Program con 15% (13-nov-2025); Japón (17-dic-2025).
+- **Offer Codes:** 1 millón de códigos por app por trimestre; 10 ofertas activas; lotes de 500 a 25,000; caducidad máxima de 6 meses en los de un solo uso; los personalizados pueden no caducar; iOS 16.3+; requieren IAP aprobada y app publicada.
+- **Precios de Apple:** 800 puntos de precio más 100 superiores a pedido (hasta USD 10,000), desde USD 0.29, para los otros 174 países en 43 monedas. Fijar a mano un precio desactiva su ajuste automático.
+- **IVA en México (Apple):** a "All companies based in Mexico" Apple les entrega el IVA para que lo enteren ellas. A las empresas se les pide RFC y Cédula. El IVA de la comisión de Apple es acreditable. La retención de ISR aplica a personas físicas, y Apple no publica la tasa. Las facturas y las constancias de retención se descargan cada mes en Reports → Tax Statements.
+- **Formularios de EE.UU.:** W-8BEN, W-8BEN-E o W-8ECI; una vez enviados no se editan en App Store Connect.
+- **Pagos de Apple:** dentro de 45 días después del cierre del mes fiscal; reportes el primer viernes; mínimo de pago por país; tipo de cambio *spot*; una sola cuenta bancaria.
+- **Apple Arcade:** acepta propuestas de juegos sin lanzar. La página describe los juegos como "without ads or In-App Purchases" desde el punto de vista del jugador.
+
+### No se pudo verificar (dominio bloqueado o sin búsquedas)
+
+- **Google Play:**
+  - Comisión de 15% sobre el primer USD 1 M y de 15% en suscripciones.
+  - Países de *User Choice Billing* (¿México?) y del nuevo *billing choice*, y sus comisiones.
+  - Si el juez aprobó el acuerdo Epic–Google.
+  - Pagos con OXXO y tarjetas de regalo de MXN 100–5,000.
+  - Trato fiscal a desarrolladores mexicanos.
+  - Fecha de pago (~día 15).
+  - Si la política de pagos permite canjear códigos propios dentro de la app.
+- **Epic v. Apple:** el contenido y la fecha del fallo de la apelación, y si existe una comisión "razonable" sobre compras enlazadas.
+- **Leyes y fiscal en México:**
+  - Ley del IVA, Capítulo III Bis (desde 1-jun-2020).
+  - Tasa de retención del art. 113-A en 2026 (¿1% o 2.5%?).
+  - IEPS de 8% a videojuegos de clasificación "C" o superior.
+  - Reforma al CFF 2026 (acceso del SAT en línea a las plataformas).
+  - Sustitución de la COFECE por la Comisión Nacional Antimonopolio.
+  - ISR de 30% para personas morales.
+  - CFDI global.
+  - Ley Federal de Juegos y Sorteos.
+  - Tratado México–EE.UU. (art. 7 al 0%, art. 12 al 10%).
+- **Brasil:** ECA Digital (Ley 15.211/2025) y la prohibición de cajas botín para menores.
+- **Proveedores:** Xsolla (~5%), Stripe México (~3.6% + MXN 3 + IVA, con OXXO), Mercado Pago, Conekta y Openpay (~3.5–4%), Stash, Appcharge y Coda.
+- **Unity y anuncios:**
+  - Unity Pro a USD 2,310 y límite de Personal de USD 200k (no verificados tampoco en el reporte 03).
+  - Fin de ironSource Exchange e iAds el 31-dic-2026.
+  - AppLovin MAX con más de 25 redes.
+  - eCPM de México y EE.UU.
+- **Fondos:** Indie Games Fund LATAM (US$2 M, US$150–200 mil por estudio, ≤ 50 empleados, ganador mexicano en 2025), Netflix Games y Google Play Pass.
+- **Precios de otros juegos:** Fortnite Crew (~US$11.99), pase de 950 V-Bucks y pases de Brawl Stars, Stumble Guys y Free Fire.
+- **Datos de mercado:** Brawl Stars ~9x en 2024, Among Us, Stumble Guys, Free Fire en México, ARPDAU, conversión, ARPPU, LTV, CPI y retención.
+- **Ejemplos phygital:** Roblox, Fortnite (Minty, Samsung/Honor), Pokémon GO, Pokémon TCG Live, Call of Duty/Halo, Nike, Vans, Forever 21 y Ralph Lauren. Nota de conocimiento previo: Niantic vendió su negocio de juegos, Pokémon GO incluido, a **Scopely** en 2025. El patrón de canje web en iOS no cambia por eso.
+- **Tipo de cambio:** el FIX del 20-nov-2026 aparece como **19.0228** en este reporte y como **19.0270** en el reporte 03. Ninguno se pudo verificar en Banxico. La cifra redondeada de 19.1 MXN/USD no cambia.
+- **Estimaciones propias** (proyección de 12 meses, catálogo de precios, regalías y ejemplo de MXN 99): son cálculos o supuestos, no datos verificables. Las cuentas aritméticas del ejemplo de MXN 99 (IVA 13.66, comisión 12.80, neto 72.54) se revisaron y son correctas.

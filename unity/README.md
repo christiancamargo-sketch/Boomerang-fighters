@@ -74,8 +74,8 @@ Las victorias por posición de salida salieron parejas y las 6 latas se recogen 
 
 1. **Prueba de lag** con `LoopbackTransport` a 0, 50, 100 y 150 ms. Si a 100 ms los KO se sienten injustos, decidir antes del mes 3 si cambiar a Photon Quantum (ver investigación 04, §8.1).
 2. **iOS:** agregar `NSLocalNetworkUsageDescription` y `NSBonjourServices` al Info.plist, y pedir a Apple el entitlement de multicast. Mientras llega: unión por QR o IP.
-3. **Android:** adquirir `WifiManager.MulticastLock` al buscar salas (plugin de 20 líneas en Java/Kotlin).
-4. **Online (Etapa 2):** implementar `ITransport` con Unity Transport + Unity Relay (o Netcode for GameObjects si se prefiere), sin tocar Core.
+3. **Android:** adquirir `WifiManager.MulticastLock` al buscar salas (plugin de 20 líneas en Java/Kotlin). Las apps que apunten a **Android 17 (API 37)** tienen la red local bloqueada por defecto y deben pedir el permiso de tiempo de ejecución `ACCESS_LOCAL_NETWORK` (ver la verificación en la investigación 04).
+4. **Online (Etapa 2):** la investigación recomienda **Netcode for GameObjects + Unity Transport + Unity Relay**. Este núcleo ya sigue ese modelo (anfitrión autoritativo que manda snapshots y recibe entradas), así que hay dos caminos sin tocar `Core/`: (a) implementar `ITransport` sobre Unity Transport, que trae Relay, y conservar `Sessions.cs`; o (b) mover el envío de entradas y snapshots a mensajes de NGO. El camino (a) es más corto. El `UdpTransport` actual sirve para LAN desde hoy.
 5. **Arte:** prefab del muñequito con playera (material con la textura del diseño), gorra intercambiable y animaciones (idle, correr, lanzar, golpe, dash, KO).
 6. **Backend de progresión** (XP, premio diario, vestidor, códigos de playera): separado de la red, ver investigación 05.
 

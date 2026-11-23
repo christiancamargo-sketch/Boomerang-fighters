@@ -13,7 +13,7 @@
   - ⚠️ **No confirmado en esta sesión:** sale de documentación que conozco de antes (hasta mediados de 2026) o de una sola fuente secundaria. **Hay que revisarlo en la página oficial antes de firmar o presupuestar.**
 - **Limitaciones reales de esta investigación:**
   1. La herramienta para leer páginas completas no pudo entrar a `photonengine.com`, `doc.photonengine.com` ni `unity.com`: la red de esta sesión no los permite. Por eso los precios oficiales de Photon y Unity vienen de los **fragmentos que devolvió el buscador**, que en varios casos citan la página oficial, y de sitios secundarios.
-  2. Hice unas 25 búsquedas y después **se agotó el presupuesto de búsquedas**, que comparten todos los agentes de esta tarea. **No pude verificar en 2026** Nakama/Heroic Cloud, Coherence, Normcore, PurrNet, Netick, FishNet, Mirror ni los permisos de red local de iOS y Android. Esas secciones salen de documentación técnica que conozco y van marcadas con ⚠️. La lista final de fuentes separa lo verificado de lo que hay que revisar.
+  2. Hice unas 25 búsquedas y después **se agotó el presupuesto de búsquedas**, que comparten todos los agentes de esta tarea. **No pude verificar en 2026** Nakama/Heroic Cloud, Coherence, Normcore, PurrNet, Netick, FishNet, Mirror ni los permisos de red local de iOS y Android. Esas secciones salen de documentación técnica que conozco y van marcadas con ⚠️. La lista final de fuentes separa lo verificado de lo que hay que revisar. *(Nota de la verificación del 23-nov-2026: los permisos de red local de iOS y Android **sí se verificaron después** en developer.apple.com y developer.android.com, y se corrigieron. Ver la sección "Verificación de datos" al final.)*
 - **No es asesoría legal ni contable.** Los precios cambian seguido. En 2026 cerraron o cambiaron de dueño varios servicios (Hathora, Multiplay de Unity), así que conviene revisar cada proveedor justo antes de elegir.
 
 ---
@@ -24,10 +24,10 @@
 2. **Las soluciones "todo en la nube" (Photon Fusion, Photon Quantum, Photon PUN, Epic Online Services, Nakama, Normcore, Coherence) necesitan internet** para crear la partida. No sirven para el modo "local sin internet" tal como viene de fábrica (⚠️ en Fusion hay que probarlo, ver §3.2).
 3. **Photon Quantum 3 es técnicamente lo mejor para un juego de peleas** (determinista con *rollback*, el estándar de los juegos de pelea), pero **no funciona sin internet** y obliga a programar con su propio paradigma. Elegirlo después significa **reescribir**. Si se va a elegir, tiene que ser al principio.
 4. **En un juego de "un golpe = KO", lo que más importa es quién decide si el golpe pegó.** La recomendación es que lo decida **el anfitrión o servidor**, "rebobinando" las posiciones al momento en que el atacante vio el golpe (*lag compensation*). Además, el diseño debe esconder el lag: el objeto viaja visible, el lanzamiento tiene una anticipación corta y el doble KO cuenta como empate.
-5. **Local sin internet es posible y barato, pero iOS pone trabas.** Desde iOS 14 la app debe pedir permiso de **"Red local"** (`NSLocalNetworkUsageDescription`). Para buscar partidas con broadcast/multicast UDP hace falta un **permiso especial de Apple (entitlement `com.apple.developer.networking.multicast`) que se solicita por formulario**. La alternativa sin ese permiso es **Bonjour/mDNS**, que funciona entre iOS y Android. En Android hay que tomar un **`MulticastLock`**. ⚠️
+5. **Local sin internet es posible y barato, pero iOS y ahora también Android ponen trabas.** Desde iOS 14 la app debe pedir permiso de **"Red local"** (`NSLocalNetworkUsageDescription`). Para buscar partidas con broadcast/multicast UDP hace falta un **permiso especial de Apple (entitlement `com.apple.developer.networking.multicast`) que Apple debe aprobar**. La alternativa sin ese permiso es **Bonjour/mDNS**, que funciona entre iOS y Android. En Android hay que tomar un **`MulticastLock`** si se usa broadcast/multicast. **Nuevo:** desde **Android 17 (API 37)**, las apps que apunten a ese nivel tienen la red local **bloqueada por defecto** y deben pedir en tiempo de ejecución el permiso **`ACCESS_LOCAL_NETWORK`** para cualquier tráfico TCP/UDP en la LAN, o sea, para todo el modo local. Hoy Google Play exige API 36; todavía no anuncia la fecha para API 37. ✅ ([Apple TN3179](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy), [Android – permiso de red local](https://developer.android.com/privacy-and-security/local-network-permission), verificados el 23-nov-2026)
 6. **Muchos Wi-Fi reales bloquean que los celulares se vean entre sí** (redes de invitados, cafés, escuelas, plazas: "aislamiento de clientes"). Hay que incluir desde el día 1 un **plan B por hotspot del celular** y la **unión por código QR o IP**.
 7. **Hathora cerró su hosting de juegos el 5 de mayo de 2026** (Fireworks AI la compró en marzo de 2026). **Unity dejó de operar Multiplay el 31 de marzo de 2026**; ahora lo opera Rocket Science Group. Relay, Lobby, Matchmaker y Netcode de Unity siguen. ✅
-8. **En México ya hay región de nube cercana:** AWS **mx-central-1 (Querétaro)**, y desde **septiembre de 2026** Amazon GameLift Servers puede alojar ahí servidores de juego ✅. Photon **no tiene región en México**; las más cercanas son `us` (este de EE. UU.), `usw` (oeste de EE. UU.) y `sa` (São Paulo) ✅.
+8. **En México ya hay región de nube cercana:** AWS **mx-central-1 (Querétaro)**, y desde **septiembre de 2026** Amazon GameLift Servers puede alojar ahí servidores de juego ✅. Photon **no tiene región en México** ✅. El reporte original dice que las más cercanas son `us` (este de EE. UU.), `usw` (oeste de EE. UU.) y `sa` (São Paulo). **Ojo ⚠️:** según la documentación de Photon que conozco de antes de 2026, la lista de regiones también incluye **`ussc` (Dallas, Texas)**. Si sigue existiendo, sería la región de Photon más cercana a México. No se pudo re-verificar porque photonengine.com está bloqueado en esta sesión.
 9. **Precios clave 2026:**
    - **Photon** Fusion/Quantum: gratis hasta 100 CCU en una app comercial; luego **US$125/mes por 500 CCU**, **US$250 por 1,000** y **US$500 por 2,000**. Arriba de eso, Premium Cloud a **US$0.50 por CCU** (mínimo US$1,000/mes). ✅
    - **Unity Relay:** **US$0.16 por CCU promedio adicional** y **US$0.09 por GiB** extra en América/Europa. ✅
@@ -112,33 +112,34 @@ En un shooter con barra de vida, un error de 50 ms quita 10% de vida y nadie lo 
 
 | Método | Cómo funciona | iOS | Android | iOS ↔ Android | Comentario |
 |---|---|---|---|---|---|
-| **Broadcast UDP** (a `255.255.255.255` o `x.x.x.255`) | El host grita "¡aquí hay sala!" cada segundo a toda la red | ⚠️ **Requiere el entitlement de multicast** de Apple (formulario) | Requiere `MulticastLock` para recibir de forma confiable | Sí | Lo más simple. **Mirror** ya trae un componente `NetworkDiscovery` que hace esto ⚠️ |
+| **Broadcast UDP** (a `255.255.255.255` o `x.x.x.255`) | El host grita "¡aquí hay sala!" cada segundo a toda la red | ✅ **Requiere el entitlement de multicast** de Apple, que Apple debe aprobar ([TN3179](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy)) | Requiere `MulticastLock` para recibir de forma confiable | Sí | Lo más simple. **Mirror** ya trae un componente `NetworkDiscovery` que hace esto ⚠️ |
 | **Multicast UDP** (grupo `239.x.x.x`) | Igual, pero solo lo escuchan los suscritos al grupo | ⚠️ Mismo entitlement | `MulticastLock` | Sí | Algunos routers mesh o empresariales lo filtran |
-| **Bonjour / mDNS (DNS-SD)** | Estándar abierto de "servicios en la red" (así se encuentran impresoras y Chromecast) | ✅ **No requiere el entitlement de multicast**, solo declarar el servicio en `NSBonjourServices` ⚠️ | API nativa `NsdManager` ⚠️ | **Sí** (es el mismo estándar) | **Es lo que Apple recomienda.** Requiere un pequeño plugin nativo (Swift/Kotlin) que la IA puede escribir |
+| **Bonjour / mDNS (DNS-SD)** | Estándar abierto de "servicios en la red" (así se encuentran impresoras y Chromecast) | ✅ **No requiere el entitlement de multicast** (solo lo piden los tipos de servicio arbitrarios o "buscar todos los tipos"). Sí hay que declarar el servicio en `NSBonjourServices`, y también dispara el aviso de "Red local" ✅ ([TN3179](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy)) | API nativa `NsdManager`. En apps que apunten a Android 17 (API 37) necesita `ACCESS_LOCAL_NETWORK` o el selector del sistema (`FLAG_SHOW_PICKER`) ✅ | **Sí** (es el mismo estándar) | **Es lo que Apple recomienda.** Requiere un pequeño plugin nativo (Swift/Kotlin) que la IA puede escribir |
 | **QR / código / IP manual** | El host muestra un QR con su IP y puerto | Sí (solo el permiso de red local) | Sí | Sí | Plan B obligatorio. Funciona aunque el broadcast esté bloqueado, **pero no** si el router aísla clientes |
 
 **Recomendación:** **Bonjour/mDNS como método principal + QR como respaldo.** Si Apple aprueba el entitlement de multicast, se puede agregar broadcast UDP como tercera vía.
 
-### 2.3 iOS: permisos y trampas (⚠️ revisar con Apple antes de publicar)
+### 2.3 iOS: permisos y trampas (✅ verificado con la TN3179 de Apple el 23-nov-2026)
 
 | Elemento | Qué es | Qué poner |
 |---|---|---|
 | `NSLocalNetworkUsageDescription` (Info.plist) | Texto del aviso "¿Permitir que *[juego]* busque dispositivos en tu red local?" (obligatorio desde iOS 14) | "Para jugar con tus amigos conectados al mismo Wi-Fi." |
 | `NSBonjourServices` (Info.plist) | Lista de los tipos de servicio Bonjour que usará la app | p. ej. `_tintafight._udp` (nombre ilustrativo) |
 | **Entitlement `com.apple.developer.networking.multicast`** | Permiso especial para mandar o recibir broadcast/multicast "a mano". **Se solicita con un formulario a Apple** y Apple decide si lo da | Solo si usamos broadcast UDP o multicast. Con Bonjour no hace falta |
-| Comportamiento del aviso | iOS lo muestra **la primera vez que la app intenta tocar la red local**. No hay API oficial para preguntar si el usuario aceptó. Si dice "No", la conexión LAN **falla en silencio** | Mostrar antes una pantalla propia que explique el permiso. Si no se encuentra a nadie, mostrar "Revisa Ajustes > Privacidad > Red local" |
-| **IPv6** | Apple revisa las apps en redes **solo IPv6** (NAT64). Si el juego conecta por IPv4 "a mano" en modo online, puede fallar la revisión | En online, usar nombres de host o servicios (relay) que soporten IPv6. En LAN no afecta |
+| Comportamiento del aviso | iOS lo muestra **la primera vez que la app intenta tocar la red local**. No hay API oficial para preguntar si el usuario aceptó. Si dice "No", la conexión LAN **falla en silencio**. **Además ✅:** mientras aparece el aviso, iOS puede negar de inmediato esa primera operación, antes de que el usuario conteste. Si la app está en segundo plano y el permiso no se ha decidido, iOS niega la operación sin mostrar el aviso ([TN3179](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy)) | Mostrar antes una pantalla propia que explique el permiso. **Reintentar la búsqueda o conexión** después del aviso. Si no se encuentra a nadie, mostrar "Revisa Ajustes > Privacidad y seguridad > Red local" |
+| **IPv6** | Desde el **1-jun-2016**, todas las apps enviadas a la App Store deben funcionar en redes **solo IPv6** (DNS64/NAT64). Si el juego usa APIs exclusivas de IPv4 o IPs fijas en modo online, puede fallar la revisión ✅ ([Apple – IPv6](https://developer.apple.com/support/ipv6/)) | En online, usar nombres de host o servicios (relay) que soporten IPv6. En LAN no afecta |
 | Unity | Unity no agrega estas claves por sí solo | Agregarlas con un script de *post-build* (`PostProcessBuild`) que edite el Info.plist |
 
-### 2.4 Android: permisos y trampas (⚠️ revisar con la documentación de Android)
+### 2.4 Android: permisos y trampas (✅ verificado en developer.android.com el 23-nov-2026)
 
 | Elemento | Para qué |
 |---|---|
 | `INTERNET`, `ACCESS_NETWORK_STATE`, `ACCESS_WIFI_STATE` | Básicos para sockets y para saber la IP del Wi-Fi |
+| **`ACCESS_LOCAL_NETWORK`** (Android 17 / API 37) ✅ | **Nuevo y crítico para el modo local.** En apps que apuntan a API 37 o más, la red local está **bloqueada por defecto**. Hace falta este permiso de tiempo de ejecución (grupo "Dispositivos cercanos") para conexiones TCP, UDP unicast/multicast/broadcast **de salida y de entrada** en la LAN, incluido `NsdManager`. Sin él, UDP falla con `EPERM` y TCP con *timeout*. Las apps que apuntan a API 36 o menos lo reciben implícito con `INTERNET`, y **no** deben pedirlo. El tráfico a internet (relay, online) no se ve afectado. Alternativa sin permiso: el selector de servicios del sistema (`DiscoveryRequest.FLAG_SHOW_PICKER`) deja elegir **un** dispositivo, pero el anfitrión que recibe a varios jugadores igual necesitará el permiso. Hoy Google Play exige API 36 (desde el 31-ago-2026); todavía no hay fecha para API 37 ([Android – permiso de red local](https://developer.android.com/privacy-and-security/local-network-permission), [Play – target SDK](https://developer.android.com/google/play/requirements/target-sdk)) |
 | `CHANGE_WIFI_MULTICAST_STATE` + **`WifiManager.MulticastLock`** | Muchos teléfonos **tiran los paquetes broadcast/multicast** para ahorrar batería. El lock se adquiere al buscar sala y se suelta al terminar. Desde Unity se llama con `AndroidJavaObject` |
 | `NsdManager` (Network Service Discovery) | El "Bonjour de Android"; interopera con iOS |
-| `NEARBY_WIFI_DEVICES` (Android 13+) | Solo si se usa Wi-Fi Direct, Wi-Fi Aware o *LocalOnlyHotspot*. No hace falta para LAN normal |
-| `LocalOnlyHotspot` (Android 8+) | La app crea un hotspot **sin compartir internet** para que otros se conecten. Sirve para el "modo fiesta sin router" |
+| `NEARBY_WIFI_DEVICES` (Android 13+) | Solo si se usa Wi-Fi Direct, Wi-Fi Aware o *LocalOnlyHotspot* (`startLocalOnlyHotspot()`). Antes de Android 13 esas APIs pedían `ACCESS_FINE_LOCATION`. Para LAN normal no hace falta este permiso, pero en API 37 sí `ACCESS_LOCAL_NETWORK` (fila de arriba) ✅ ([Permisos Wi-Fi](https://developer.android.com/develop/connectivity/wifi/wifi-permissions)) |
+| `LocalOnlyHotspot` (Android 8+) | La app crea un hotspot **sin acceso a internet** para que otros se conecten. Sirve para el "modo fiesta sin router" ✅ ([LocalOnlyHotspot](https://developer.android.com/develop/connectivity/wifi/localonlyhotspot)) |
 
 ### 2.5 Problemas del mundo real y cómo resolverlos
 
@@ -158,8 +159,8 @@ En un shooter con barra de vida, un error de 50 ms quita 10% de vida y nadie lo 
 | **Hotspot de un celular** | iOS (Compartir Internet) ↔ Android, en ambos sentidos | 5–10 según el teléfono | Muy baja (2–10 ms) | **Plan B principal.** En iPhone, "Compartir Internet" normalmente requiere plan de datos activo ⚠️. En Android, `LocalOnlyHotspot` no consume datos. La IP del host cambia (iPhone suele usar `172.20.10.1`) ⚠️, por eso conviene descubrir por Bonjour o QR |
 | **Bluetooth clásico / BLE** | Difícil entre iOS y Android | 2–4 en la práctica | Alta e inestable (30–100+ ms) | **No recomendado** para un juego de reflejos |
 | **Google Nearby Connections** | Android (y una versión para iOS, experimental) ⚠️ | Topología estrella con varios equipos | Variable (usa BT + Wi-Fi) | Bueno para "juntarse sin Wi-Fi" en Android, pero el soporte iOS ↔ Android no es confiable ⚠️ |
-| **Apple MultipeerConnectivity** | **Solo iOS** | Hasta 8 por sesión ⚠️ | Baja | Sirve entre iPhones; **rompe el juego cruzado** |
-| **Wi-Fi Aware** | Android 8+ con hardware compatible; iOS 26 agregó un framework de Wi-Fi Aware ⚠️ | Varios | Baja | Promete conexión directa iPhone ↔ Android sin router. **Muy nuevo**: evaluarlo en 2027, no depender de él |
+| **Apple MultipeerConnectivity** | **Solo Apple** | Hasta 8 por sesión, **contando el propio dispositivo** ✅ | Baja | **Apple lo marcó como obsoleto (*deprecated*) en iOS 27** ("Use Network Framework instead") ✅ ([MCSession](https://developer.apple.com/documentation/multipeerconnectivity/mcsession)). Además **rompe el juego cruzado**. **No usar** |
+| **Wi-Fi Aware** | Android 8+ (API 26) con hardware compatible (`FEATURE_WIFI_AWARE`; en Android 13+ pide `NEARBY_WIFI_DEVICES`). Apple agregó el framework **Wi-Fi Aware en iOS/iPadOS 26**, solo para **iPhone 12 o posterior** ✅ | Varios | Baja | Apple lo documenta para conectar con **accesorios y dispositivos con certificación Wi-Fi Aware, emparejados** por AccessorySetupKit o DeviceDiscoveryUI. **No documenta** partidas iPhone ↔ teléfono Android. **Muy nuevo**: evaluarlo en 2027, no depender de él ([Apple – Wi-Fi Aware](https://developer.apple.com/documentation/wifiaware), [Android – Wi-Fi Aware](https://developer.android.com/develop/connectivity/wifi/wifi-aware)) |
 
 ### 2.7 Checklist del modo local
 
@@ -167,6 +168,7 @@ En un shooter con barra de vida, un error de 50 ms quita 10% de vida y nadie lo 
 - [ ] Descubrimiento Bonjour/NSD (plugin nativo) + QR + IP manual.
 - [ ] Permisos de iOS en Info.plist (script post-build) y pantalla previa que explique el permiso.
 - [ ] `MulticastLock` en Android si se usa broadcast.
+- [ ] Al apuntar a Android 17 (API 37): declarar y pedir `ACCESS_LOCAL_NETWORK` en tiempo de ejecución, con una pantalla previa que lo explique y manejo de "permiso negado" (igual que en iOS).
 - [ ] Botón "Crear hotspot" con instrucciones por plataforma.
 - [ ] Bots para llenar la sala (corren en el host).
 - [ ] Probar en: módem Telmex/Izzi/Totalplay, Wi-Fi de un café, hotspot iPhone→Android y Android→iPhone, y 8 celulares de gama media.
@@ -244,7 +246,7 @@ En un shooter con barra de vida, un error de 50 ms quita 10% de vida y nadie lo 
 
 **Rivet** ✅: hoy se describe como orquestador de "workloads agénticos" (actors), con tarifas como ~US$0.15/GB de salida ([rivet.dev/cloud](https://www.rivet.dev/cloud/), [directorio, sep-2026](https://www.positioniseverything.net/tools/rivet/)). Ya no es una opción natural para servidores de juego.
 
-**Epic Online Services (EOS)** ✅/⚠️: **gratis**: lobbies, matchmaking, P2P con NAT traversal y **relay automático cuando el NAT no deja pasar**, cuentas, estadísticas y tablas. Sin regalías ni costo de hosting ([EOS servicios](https://onlineservices.epicgames.com/en-US/services-games), [PC Gamer](https://www.pcgamer.com/epics-multiplayer-systems-are-now-available-for-other-devs-to-use-for-free), [foro Unreal citando la doc de P2P](https://forums.unrealengine.com/t/question-about-networking-ports-and-eos/598259)). El relay de EOS **no es un servidor autoritativo** ([Edgegap](https://edgegap.com/blog/can-epic-online-services-eos-relays-allow-for-dedicated-server-or-authoritative-server)). Soporte móvil: wrappers como FishyEOS listan iOS y Android, pero **no confirmé en el portal de Epic** el estado actual del SDK móvil ⚠️. Es la opción **"online gratis"** más fuerte si el presupuesto es cero.
+**Epic Online Services (EOS)** ✅/⚠️: **gratis**: lobbies, matchmaking, P2P con NAT traversal y **relay automático cuando el NAT no deja pasar**, cuentas, estadísticas y tablas. Sin regalías ni costo de hosting ([EOS servicios](https://onlineservices.epicgames.com/en-US/services-games), [PC Gamer](https://www.pcgamer.com/epics-multiplayer-systems-are-now-available-for-other-devs-to-use-for-free), [foro Unreal citando la doc de P2P](https://forums.unrealengine.com/t/question-about-networking-ports-and-eos/598259)). El relay de EOS **no es un servidor autoritativo** ([Edgegap](https://edgegap.com/blog/can-epic-online-services-eos-relays-allow-for-dedicated-server-or-authoritative-server)). Soporte móvil: wrappers como FishyEOS listan iOS y Android, pero **no confirmé en el portal de Epic** el estado actual del SDK móvil ⚠️. Según conocimiento previo (hasta mediados de 2026), Epic publica el SDK de EOS para Android e iOS; no se pudo re-verificar en 2026. Es la opción **"online gratis"** más fuerte si el presupuesto es cero.
 
 **Steam** ✅: Steam Datagram Relay es gratis, pero **solo para juegos en Steam (PC)**. No aplica a celulares ([Steamworks](https://partner.steamgames.com/doc/features/multiplayer/steamdatagramrelay)).
 
@@ -274,7 +276,7 @@ En un shooter con barra de vida, un error de 50 ms quita 10% de vida y nadie lo 
 | Proveedor | Región más cercana a CDMX | ¿Hay región en México? | Fuente |
 |---|---|---|---|
 | **AWS (EC2 / GameLift)** | **mx-central-1, Querétaro** (3 zonas de disponibilidad) | ✅ **Sí.** GameLift Servers disponible ahí desde sep-2026 | [AWS blog – región México](https://aws.amazon.com/blogs/aws/now-open-aws-mexico-central-region/), [AWS What's New 2026](https://aws.amazon.com/about-aws/whats-new/2026/09/amazon-gamelift-servers-region-expansion-2026/) |
-| **Photon Cloud** | `us` (este de EE. UU.), `usw` (San José, CA), `sa` (São Paulo) | ❌ No hay código `mx` | [Fusion 2 – Regions](https://doc.photonengine.com/fusion/current/manual/connection-and-matchmaking/regions) |
+| **Photon Cloud** | `us` (este de EE. UU.), `usw` (San José, CA), `sa` (São Paulo). ⚠️ Posiblemente también **`ussc` (Dallas, Texas)**, según documentación de Photon anterior a 2026; no se pudo re-verificar | ❌ No hay código `mx` | [Fusion 2 – Regions](https://doc.photonengine.com/fusion/current/manual/connection-and-matchmaking/regions) |
 | **Edgegap** | Red de cientos de ubicaciones; dice desplegar "lo más cerca de los jugadores" | ⚠️ Probablemente sí (no confirmado) | [Edgegap](https://edgegap.com/gaming/indies) |
 | **Unity Relay** | Regiones de EE. UU. y Sudamérica ⚠️ | ⚠️ No confirmado | [UGS Pricing](https://unity.com/products/gaming-services/pricing) |
 | **PlayFab** | Regiones de Azure (Azure tiene región en México Central ⚠️); el gratis aplica solo en East US y North Europe | ⚠️ | [Microsoft Learn](https://learn.microsoft.com/en-ca/xbox/playfab/multiplayer/servers/billing-for-thunderhead) |
@@ -292,7 +294,7 @@ En un shooter con barra de vida, un error de 50 ms quita 10% de vida y nadie lo 
 
 > La herramienta [awsspeedtest.com – mx-central-1](https://awsspeedtest.com/regions/mx-central-1) sirve para medir desde el celular. Recomiendo una semana de pruebas reales con 10 personas en CDMX, Monterrey, Guadalajara y Mérida.
 
-**Conclusión de latencia:** para jugadores mexicanos, un relay o servidor en **Querétaro o Texas** da 2 a 4 veces menos ping que Photon (Virginia/California). Si después hay jugadores en Brasil y Argentina, conviene un servidor o relay en São Paulo y emparejar por región para no mezclar mexicanos con brasileños.
+**Conclusión de latencia:** para jugadores mexicanos, un relay o servidor en **Querétaro o Texas** da 2 a 4 veces menos ping que Photon en Virginia o California. **Ojo ⚠️:** si Photon ofrece la región `ussc` (Dallas), esa ventaja casi desaparece frente a Texas. Hay que confirmarlo en la página de regiones de Photon antes de descartarlo por latencia. Si después hay jugadores en Brasil y Argentina, conviene un servidor o relay en São Paulo y emparejar por región para no mezclar mexicanos con brasileños.
 
 ---
 
@@ -312,7 +314,7 @@ En un shooter con barra de vida, un error de 50 ms quita 10% de vida y nadie lo 
 | Quantum (determinista, solo entradas) | Entradas de 8 jugadores a 60 Hz | Del mismo orden: 2–5 KB/s por jugador ⚠️ |
 
 **Implicaciones:**
-- En México mucha gente juega con **datos prepagados**. 10 partidas ≈ 12 MB como cliente (aceptable). El **anfitrión** gasta ~6 MB por partida de 3 min; vale la pena avisarlo o elegir como anfitrión a quien esté en Wi-Fi.
+- En México mucha gente juega con **datos prepagados**. 10 partidas ≈ 12 MB como cliente (aceptable). El **anfitrión** gasta ~6 MB de subida por partida de 3 min, **≈ 8 MB en total** si se suma la bajada de las entradas de 7 clientes (~0.6 MB/min). Vale la pena avisarlo o elegir como anfitrión a quien esté en Wi-Fi.
 - Para costos usamos **0.4 MB de salida por jugador-minuto**, que es conservador.
 
 ---
@@ -380,7 +382,7 @@ Cálculo: vCPU-minutos/mes = DAU × 25 min × 30 días ÷ 6 jugadores × 1.25 (t
 
 **Contexto de negocio ⚠️:** a 100k DAU, aun la opción más cara (~US$12,000/mes) son unos **US$0.004 por jugador al día**. En juegos casuales móviles, el ingreso diario por jugador suele estar varias veces arriba de eso, así que **la red no es lo que quiebra el proyecto; lo que lo quiebra es la retención** (ver documento 02).
 
-**Costos fijos que siempre aplican ⚠️:** Apple Developer Program, US$99/año (~MXN 1,890); Google Play, US$25 en un solo pago (~MXN 480); Unity Personal, gratis mientras los ingresos y fondos de los últimos 12 meses sean menores a US$200,000 ([A Plus Games Studio, 2026](https://aplusgamesstudio.com/blog/unity-pricing-2026)).
+**Costos fijos que siempre aplican:** Apple Developer Program, US$99/año (~MXN 1,890), en moneda local donde esté disponible ✅ ([Apple – inscripción](https://developer.apple.com/help/account/membership/program-enrollment/), verificado el 23-nov-2026); Google Play, US$25 en un solo pago (~MXN 480) ✅ (lo confirma de forma indirecta la [FAQ oficial de Android](https://developer.android.com/developer-verification/guides/faq): "Play's $25 registration fee"); Unity Personal, gratis mientras los ingresos y fondos de los últimos 12 meses sean menores a US$200,000 ⚠️. Esto último coincide con conocimiento previo (umbral de Unity 6) y con el reporte 03, pero unity.com está bloqueado y no se pudo re-verificar ([Unity – pricing updates](https://unity.com/products/pricing-updates), [A Plus Games Studio, 2026](https://aplusgamesstudio.com/blog/unity-pricing-2026)).
 
 ---
 
@@ -471,7 +473,7 @@ public interface IMatchFinder {           // LAN: Bonjour/NSD + QR · Online: Lo
 | Permisos iOS | Instalación limpia + negar el permiso | La app explica cómo arreglarlo |
 | Relay | 4 personas en distintas ciudades por 4G | Ping medio menor a 100 ms con relay en EE. UU. o Querétaro |
 | Headless | Correr el host como servidor sin gráficos en una PC | Una partida completa con bots |
-| Batería y datos | 30 min de juego como host | Menos de 15% de batería; menos de 70 MB de datos |
+| Batería y datos | 30 min de juego como host | Menos de 15% de batería; menos de ~90 MB de datos (corregido: la estimación de §5 da ≈ 80 MB para el anfitrión con 8 jugadores, ~2.1 MB/min de subida + ~0.6 MB/min de bajada, así que el criterio anterior de 70 MB fallaría por diseño) |
 
 ### 8.4 Presupuesto de red sugerido por etapa
 
@@ -488,6 +490,7 @@ public interface IMatchFinder {           // LAN: Bonjour/NSD + QR · Online: Lo
 |---|---|---|
 | Apple no aprueba el entitlement de multicast | Media | Usar Bonjour (no lo necesita) + QR |
 | Wi-Fi con aislamiento de clientes | Alta en lugares públicos | Hotspot + mensaje claro |
+| El usuario niega el permiso de red local (iOS, o Android 17 al apuntar a API 37) | Media | Pantalla previa que explique el permiso, reintentos y una guía para activarlo en Ajustes. Probar desde el prototipo con el permiso negado en ambas plataformas |
 | Cierre o cambio de proveedor (como Hathora/Multiplay en 2026) | Media | Interfaces de red intercambiables; no usar APIs exclusivas de un proveedor dentro del gameplay |
 | El host hace trampa en online público | Alta si hay ranked | Ranked solo en servidores dedicados (Etapa 3) |
 | Lag en 4G hace "injustos" los KO | Media | Trucos de §1.3, emparejamiento por región, relay o servidor en Querétaro/Texas |
@@ -504,9 +507,10 @@ public interface IMatchFinder {           // LAN: Bonjour/NSD + QR · Online: Lo
 5. Precio de GameLift en **mx-central-1** (puede ser distinto al de Ohio) y costo de transferencia de datos ahí.
 6. Si **Edgegap** tiene ubicaciones en México (CDMX/Querétaro/Monterrey) y precios de sus planes de relay.
 7. Precios 2026 de **Heroic Cloud (Nakama)**, **Coherence** y **Normcore**.
-8. Requisitos vigentes de Apple para el **entitlement de multicast** y la redacción del aviso de red local.
-9. Madurez de **Wi-Fi Aware** en iOS 26 ↔ Android para un futuro "modo sin router".
+8. Requisitos vigentes de Apple para el **entitlement de multicast** y la redacción del aviso de red local. *(Verificado el 23-nov-2026: el entitlement sigue siendo obligatorio para broadcast/multicast en iOS y requiere permiso de Apple. Bonjour estándar no lo necesita. Queda pendiente saber cuánto tarda Apple en aprobarlo.)*
+9. Madurez de **Wi-Fi Aware** en iOS 26 ↔ Android para un futuro "modo sin router". *(Verificado: Apple lo documenta para accesorios y dispositivos certificados y emparejados, en iPhone 12 o posterior; no menciona teléfonos Android.)*
 10. Qué tan bien funciona la **lag compensation casera** en NGO contra Fusion o Quantum: se resuelve con la prueba de §8.3.
+11. **Nuevo:** fecha en que Google Play exigirá apuntar a **API 37 (Android 17)**, que es cuando el modo local necesitará `ACCESS_LOCAL_NETWORK`. Hoy se exige API 36 desde el 31-ago-2026 y no hay fecha publicada para API 37.
 
 ---
 
@@ -571,6 +575,8 @@ public interface IMatchFinder {           // LAN: Bonjour/NSD + QR · Online: Lo
 
 Se agotó el presupuesto de búsquedas y la red bloqueó la lectura directa de páginas.
 
+> **Actualización del 23-nov-2026:** las páginas de Apple (TN3179, entitlement de multicast, MultipeerConnectivity, IPv6) y de Android (MulticastLock, permisos Wi-Fi, LocalOnlyHotspot, Wi-Fi Aware) **sí se pudieron leer después** y quedaron verificadas. Ver la sección "Verificación de datos". Siguen sin verificar las de Unity, Mirror, FishNet, PurrNet, Netick, Photon, Heroic Labs, Normcore, Google Nearby y GGPO.
+
 - Apple – TN3179 "Understanding local network privacy": https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy
 - Apple – Solicitud del entitlement de multicast: https://developer.apple.com/contact/request/networking-multicast
 - Apple – NSBonjourServices / NSLocalNetworkUsageDescription: https://developer.apple.com/documentation/bundleresources/information_property_list/nslocalnetworkusagedescription
@@ -591,3 +597,95 @@ Se agotó el presupuesto de búsquedas y la red bloqueó la lectura directa de p
 - Heroic Labs – Nakama: https://heroiclabs.com/docs/nakama/ · https://github.com/heroiclabs/nakama
 - Normcore – Pricing: https://normcore.io/pricing
 - GGPO (rollback): https://www.ggpo.net
+
+---
+
+## Verificación de datos (2026-11-23)
+
+**Cómo se hizo y sus límites.** Una revisión independiente y escéptica releyó todo el reporte y volvió a comprobar los datos de alto riesgo: precios, límites gratuitos, requisitos de Apple y Google, fechas y estado de los servicios.
+- **Búsquedas:** el presupuesto de búsquedas web de la sesión ya estaba agotado, así que **no se pudo hacer ninguna búsqueda nueva**.
+- **Lectura directa:** solo se pudieron leer páginas oficiales de **developer.apple.com** y **developer.android.com**. Los dominios `unity.com`, `photonengine.com`, `doc.photonengine.com` y `edgegap.com` no resolvieron en la red de la sesión. Por indicación de la propia red, no se probaron más dominios (AWS, Epic, Microsoft, etc.).
+- **Consecuencia:** todo lo que depende de esos proveedores queda **sin verificar**, aunque no necesariamente esté mal. Para re-verificarlo hay que permitir esos dominios o ampliar el límite de búsquedas.
+- **Cálculos:** también se revisaron todas las cuentas internas del documento: costos, conversiones a pesos y tráfico.
+
+### Corregido
+
+| # | Qué decía | Qué es correcto | Fuente |
+|---|---|---|---|
+| 1 | Android: para LAN normal bastan `INTERNET`, `ACCESS_NETWORK_STATE` y `ACCESS_WIFI_STATE` (+ `MulticastLock`) | **Desde Android 17 (API 37)**, las apps que apuntan a ese nivel tienen la red local **bloqueada por defecto**. Necesitan el permiso de tiempo de ejecución **`ACCESS_LOCAL_NETWORK`** (grupo "Dispositivos cercanos") para TCP y UDP de entrada y de salida en la LAN, incluido `NsdManager`. Con API 36 o menos el permiso es implícito. Google Play exige API 36 desde el 31-ago-2026 y aún no anuncia fecha para API 37. Se agregó a §Resumen 5, §2.2, §2.4, §2.7, §8.5 y §9 | [Android – permiso de red local](https://developer.android.com/privacy-and-security/local-network-permission), [Play – target SDK](https://developer.android.com/google/play/requirements/target-sdk) |
+| 2 | MultipeerConnectivity: "hasta 8 por sesión ⚠️", sin más advertencias | 8 pares **contando el propio dispositivo**. Además, **Apple marcó MCSession y el resto del framework como obsoletos en iOS 27** ("Use Network Framework instead"). No usar | [Apple – MCSession](https://developer.apple.com/documentation/multipeerconnectivity/mcsession), [kMCSessionMaximumNumberOfPeers](https://developer.apple.com/documentation/multipeerconnectivity/kmcsessionmaximumnumberofpeers) |
+| 3 | iOS: si el usuario dice "No", la LAN falla en silencio. Ruta "Ajustes > Privacidad > Red local" | Se agregó que iOS **puede negar la primera operación mientras muestra el aviso**, así que hay que reintentar. En segundo plano niega sin mostrar el aviso. La ruta correcta es **Ajustes > Privacidad y seguridad > Red local** | [Apple TN3179](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy) |
+| 4 | Bonjour "no requiere el entitlement de multicast ⚠️" | Confirmado, con un matiz: el entitlement solo hace falta para tipos de servicio **arbitrarios** o para "buscar todos los tipos". Bonjour **sí dispara el aviso de Red local** y exige `NSBonjourServices` | [Apple TN3179](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy), [Entitlement de multicast](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.networking.multicast) |
+| 5 | Wi-Fi Aware: "promete conexión directa iPhone ↔ Android sin router" | El framework existe desde **iOS/iPadOS 26**, solo en **iPhone 12 o posterior**. Apple lo documenta para **accesorios y dispositivos certificados y emparejados** (AccessorySetupKit / DeviceDiscoveryUI). **No documenta** partidas con teléfonos Android. En Android requiere API 26+, hardware `FEATURE_WIFI_AWARE` y `NEARBY_WIFI_DEVICES` en Android 13+ | [Apple – Wi-Fi Aware](https://developer.apple.com/documentation/wifiaware), [Android – Wi-Fi Aware](https://developer.android.com/develop/connectivity/wifi/wifi-aware) |
+| 6 | Photon: las regiones más cercanas son `us`, `usw` y `sa` ✅. Por eso Querétaro o Texas dan "2 a 4 veces menos ping" | **Confianza bajada a ⚠️.** Según documentación de Photon anterior a 2026 (conocimiento previo), existe también la región **`ussc` (Dallas)**. Si sigue vigente, sería la más cercana a México y la ventaja de latencia frente a Texas casi desaparece. No se pudo abrir photonengine.com para confirmarlo | Conocimiento previo; pendiente: [Photon – Regions](https://doc.photonengine.com/fusion/current/manual/connection-and-matchmaking/regions) |
+| 7 | Prueba de datos del anfitrión: "menos de 70 MB en 30 min". Anfitrión: "~6 MB por partida" | Con los propios supuestos de §5, el anfitrión con 8 jugadores gasta ≈ 2.1 MB/min de subida + ≈ 0.6 MB/min de bajada ≈ **80 MB en 30 min** (≈ 8 MB por partida de 3 min). El criterio se cambió a **< ~90 MB** | Revisión interna de cálculos |
+| 8 | Costos fijos con ⚠️ general; Unity Personal citado solo con fuente secundaria | Apple **99 USD/año** (en moneda local donde aplique) y Google **US$25** quedaron confirmados (✅). Unity Personal (< US$200k) queda ⚠️: coincide con conocimiento previo y con el reporte 03, pero unity.com está bloqueado | [Apple – inscripción](https://developer.apple.com/help/account/membership/program-enrollment/), [FAQ de Android](https://developer.android.com/developer-verification/guides/faq) |
+
+### Confirmado con fuente oficial (leída el 23-nov-2026)
+
+- **Red local en iOS desde iOS 14** (iPadOS 14, visionOS 1, macOS 15). Hay que declarar `NSLocalNetworkUsageDescription` y, si se usa Bonjour, `NSBonjourServices`. No existe una API para mostrar el aviso a voluntad ([TN3179](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy)).
+- **Entitlement `com.apple.developer.networking.multicast`:** obligatorio en iOS para **enviar o recibir broadcast o multicast**, y **requiere permiso de Apple** mediante solicitud. Enviar UDP *unicast* (la conexión por QR o IP) no lo necesita, pero sí dispara el aviso de Red local ([documento del entitlement](https://developer.apple.com/documentation/bundleresources/entitlements/com.apple.developer.networking.multicast), [TN3179](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy)).
+- **IPv6:** desde el 1-jun-2016, toda app enviada a la App Store debe funcionar en redes solo IPv6 ([Apple](https://developer.apple.com/support/ipv6/)).
+- **`WifiManager.MulticastLock`** (API 4): sin el lock, el Wi-Fi filtra los paquetes multicast. Gasta batería, así que hay que soltarlo al terminar ([Android](https://developer.android.com/reference/android/net/wifi/WifiManager.MulticastLock)).
+- **`NEARBY_WIFI_DEVICES` (Android 13+):** lo piden `startLocalOnlyHotspot()`, Wi-Fi Aware y Wi-Fi Direct. Antes de Android 13 esas APIs pedían `ACCESS_FINE_LOCATION`. **LocalOnlyHotspot** crea una red **sin internet** ([permisos Wi-Fi](https://developer.android.com/develop/connectivity/wifi/wifi-permissions), [LocalOnlyHotspot](https://developer.android.com/develop/connectivity/wifi/localonlyhotspot)).
+- **Wi-Fi Aware en Android** desde Android 8.0 (API 26) ([Android](https://developer.android.com/develop/connectivity/wifi/wifi-aware)).
+- **Apple Developer Program: 99 USD/año.** Google Play: **US$25** de registro, confirmado de forma indirecta por la FAQ de Android (actualizada el 18-jun-2026).
+- **Cálculos internos verificados sin errores:**
+  - Proyecciones de §6 para Photon, Unity Relay y Edgegap.
+  - Conversiones a MXN a 19.1.
+  - CCU promedio = DAU × 25 / 1,440.
+  - 0.3 GB por DAU al mes.
+  - US$0.004 por jugador al día a 100k DAU.
+  - El tipo de cambio coincide con el de los reportes 01, 02 y 03, que citan fuentes distintas (FIX 19.02–19.03).
+
+### No se pudo verificar (dominio bloqueado o sin búsquedas disponibles)
+
+- **Cierres y cambios de dueño en 2026:**
+  - Hathora: compra por Fireworks AI (4-mar-2026) y cierre del hosting (5-may-2026).
+  - Stormgate: pérdida de su online.
+  - Unity Multiplay: Unity dejó de operarlo el 31-mar-2026 y pasó a Rocket Science Group.
+  - Rivet: giro a "workloads agénticos" (~US$0.15/GB).
+  - No contradicen nada conocido, pero no se pudieron leer las fuentes.
+- **Photon:**
+  - 100 CCU gratis solo para Fusion/Quantum (20 para PUN).
+  - US$95 por 100 CCU durante 12 meses.
+  - US$125, 250 y 500 al mes por 500, 1,000 y 2,000 CCU.
+  - Premium a US$0.50/CCU (mínimo US$1,000).
+  - ~3 GB por CCU, *burst*, suma de picos por región.
+  - Lista de regiones, en particular `ussc`.
+  - Coincide en parte con conocimiento previo.
+- **Unity:**
+  - Relay: US$0.16 por CCU promedio, US$0.09/GiB en América/Europa, US$0.16/GiB en Asia/Australia, 50 CCU gratis, 3 GiB por CCU con máximo de 150 GiB, cobro por CCU promedio.
+  - Tarifas de Lobby, Matchmaker y Distributed Authority.
+  - Disponibilidad general de DA.
+  - Umbral de Unity Personal (US$200k), que coincide con conocimiento previo.
+- **Edgegap:**
+  - US$0.00115 por vCPU-minuto y la supuesta subida desde US$0.001.
+  - US$0.10/GB de salida.
+  - Flota privada a US$280/mes (16 vCPU, 6 TB, 12 meses).
+  - Relay: 325 GB gratis, planes de 1,625, 3,250 y 6,500 GB, US$0.14 por CCU pico.
+  - Ubicaciones en México.
+- **AWS:**
+  - GameLift Servers en mx-central-1 desde sep-2026.
+  - c5.large a US$0.109/h en Ohio y salida a ~US$0.09/GB.
+  - Coinciden con conocimiento previo, sin re-verificar: región mx-central-1 en Querétaro con 3 zonas (abrió en ene-2025) y Free Tier basado en créditos desde 2025.
+- **Otros proveedores:**
+  - EOS gratis y SDK móvil. Según conocimiento previo, Epic publica el SDK para Android e iOS.
+  - PlayFab: 750 horas-núcleo Dasv4 + 10 GB gratis, que coincide con conocimiento previo.
+  - Steam Datagram Relay solo para juegos de Steam.
+  - Azure México Central.
+  - Precios de Nakama/Heroic Cloud, Coherence y Normcore.
+  - Funciones Pro de FishNet, PurrNet, Netick y Mirror.
+  - Estado de Google Nearby Connections en iOS.
+- **Casos y datos varios:**
+  - Knockout City cerró en 2023 y liberó servidores privados (coincide con conocimiento previo).
+  - Duck Game usa P2P.
+  - Among Us usó la librería Hazel.
+  - IP `172.20.10.1` del hotspot de iPhone y necesidad de plan de datos.
+  - Ninguno se re-verificó en esta sesión.
+
+**Qué hacer antes de presupuestar o firmar:**
+1. Abrir las páginas de precios de Photon, Unity (UGS), Edgegap y AWS GameLift (región mx-central-1).
+2. Confirmar la lista de regiones de Photon (`ussc`).
+3. Revisar el aviso oficial de Unity sobre Multiplay y el estado de Hathora.
+4. Seguir el calendario de Google Play para el requisito de API 37.

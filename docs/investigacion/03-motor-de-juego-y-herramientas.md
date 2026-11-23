@@ -142,7 +142,7 @@ Para un equipo que **no programa a mano**, este criterio pesa tanto como el rend
 
 ### 4.2 Presupuesto de rendimiento para Android gama baja **[Estimación: reglas prácticas de la industria]**
 
-Android tiene ~78.7 % del mercado móvil en México e iOS ~21.3 % (jul-2026, [StatCounter](https://gs.statcounter.com/os-market-share/mobile/mexico)). Entre los Android más vendidos de 2026 están el **Samsung Galaxy A07** y el **Moto G06** ([Luz Noticias](https://www.luznoticias.mx/2026-03-17/mexico/celulares-android-que-mas-se-venden-en-mexico-este-2026-/282031), [Merca2.0](https://www.merca20.com/cuales-son-los-celulares-android-mas-populares-en-mexico-en-2026-y-por-que-samsung-domina-el-mercado/)). Hay que diseñar para ese piso.
+Android tiene ~78.7 % del mercado móvil en México e iOS ~21.3 % (jul-2026, [StatCounter](https://gs.statcounter.com/os-market-share/mobile/mexico)). **[Conflicto entre fuentes]:** el reporte 02 cita la misma fuente con **74.1 % Android / 25.9 % iOS a oct-2026**. No pude abrir StatCounter en la verificación del 23-nov-2026; conviene usar el dato más reciente y tomar Android como ~3/4 del mercado. Entre los Android más vendidos de 2026 están el **Samsung Galaxy A07** y el **Moto G06** ([Luz Noticias](https://www.luznoticias.mx/2026-03-17/mexico/celulares-android-que-mas-se-venden-en-mexico-este-2026-/282031), [Merca2.0](https://www.merca20.com/cuales-son-los-celulares-android-mas-populares-en-mexico-en-2026-y-por-que-samsung-domina-el-mercado/)). Hay que diseñar para ese piso.
 
 | Elemento | Gama baja (objetivo) | Gama media/alta |
 |---|---|---|
@@ -176,7 +176,7 @@ Recomendaciones que sí vienen de la documentación oficial y de foros:
 
 ### 5.1 Modelado (Blender)
 1. **Concepto 2D** del muñequito: proporción chibi con cabeza grande, en pose T o A.
-2. **Modelado en Blender**, que es gratis. Si INKCAP tiene *art toys* físicos, **su empresa de escaneo puede escanearlos, hacer retopología a 3–5k triángulos y hornear el color a textura**. Es una ventaja única: los muñequitos del juego serían versiones digitales fieles de las figuras edición limitada. Eso se presta a una mecánica de "compra el art toy y desbloquea el personaje", sujeta a las reglas de las tiendas (ver la sección 9, dudas).
+2. **Modelado en Blender**, que es gratis. Si INKCAP tiene *art toys* físicos, **su empresa de escaneo puede escanearlos, hacer retopología a 3–5k triángulos y hornear el color a textura**. Es una ventaja única: los muñequitos del juego serían versiones digitales fieles de las figuras edición limitada. Eso se presta a una mecánica de "compra el art toy y desbloquea el personaje", sujeta a las reglas de las tiendas (ver la sección 12, duda 4).
 3. **Un mapa UV con una isla dedicada al "área de estampado"** en el pecho y otra en la espalda de la playera. Este paso es la base del sistema de trajes.
 4. Exportar en FBX o glTF a Unity con escala y ejes consistentes.
 
@@ -229,7 +229,7 @@ La idea es que el **cuerpo del muñequito no cambie** y solo cambie el estampado
 | **Multiplayer Services** (Relay, Lobby, Sessions) | Fase online | Nivel gratuito más pago por uso |
 | **Authentication + Cloud Save** (o Firebase) | Guardar XP, nivel, racha diaria e inventario | Nivel gratuito **[verificar límites]** |
 | **Analytics + Crashlytics** (Unity o Firebase) | Métricas y reporte de errores | Nivel gratuito |
-| **Unity IAP 5** o **RevenueCat** | Compras de trajes y pase de temporada | Unity IAP gratis. RevenueCat gratis hasta USD 2,500 de ingresos mensuales rastreados; después 1 % del total ([RevenueCat](https://revenuecat.com/pricing), [usagepricing](https://www.usagepricing.com/blueprint/revenuecat)) |
+| **Unity IAP 5** o **RevenueCat** | Compras de trajes y pase de temporada | Unity IAP gratis. RevenueCat gratis hasta USD 2,500 de ingresos mensuales rastreados; después 1 % **[Conflicto entre fuentes: este reporte dice 1 % del total y el reporte 05 dice 1 % solo del excedente sobre USD 2.5k; no pude abrir la página oficial el 23-nov-2026]** ([RevenueCat](https://revenuecat.com/pricing), [usagepricing](https://www.usagepricing.com/blueprint/revenuecat)) |
 | **DOTween** | Animaciones de interfaz y "jugo" por código | Gratis; versión Pro de pago **[verificar precio]** |
 | **Feel** (More Mountains) | Paquete de efectos de impacto: *hit-stop*, temblor, partículas, vibración | De pago en Asset Store **[verificar precio]**. Opcional pero muy recomendable para un brawler |
 | **ProBuilder** | Arenas en *greybox* | Incluido |
@@ -266,9 +266,10 @@ Fuentes: [hilo LAN con NGO](https://discussions.unity.com/t/creating-an-offline-
 - **Fase 1, local:** el anfitrión muestra un **código QR con su IP**. Los demás lo escanean y se conectan, sin escribir números. También funciona si todos se conectan al **hotspot** del teléfono anfitrión.
 - **Fase 2, online:** el mismo código de juego pero con transporte Relay. Se cambia "QR con IP" por "código de sala de 6 letras". La lógica del juego **no se reescribe**.
 
-**Trampas de la red local** **[Conocimiento previo — verificar con Apple]**:
-- **iOS 14 en adelante** pide el permiso de "Red local" (`NSLocalNetworkUsageDescription`).
-- Para enviar ***broadcast* o *multicast*** (la búsqueda automática de partidas) Apple exige un **permiso especial que hay que solicitarle** (`com.apple.developer.networking.multicast`). El QR con IP evita ese trámite.
+**Trampas de la red local** (verificado el 23-nov-2026 con la nota técnica [TN3179 de Apple](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy)):
+- **iOS 14 en adelante** pide el permiso de "Red local". La app debe declarar `NSLocalNetworkUsageDescription` en su `Info.plist` (y `NSBonjourServices` si usa Bonjour).
+- Para enviar o recibir ***broadcast* o *multicast*** (la búsqueda automática de partidas), en iOS hace falta además el *entitlement* `com.apple.developer.networking.multicast`. Apple tiene un formulario de solicitud para él, detrás del inicio de sesión de la cuenta de desarrollador. El QR con IP evita ese trámite, porque el UDP *unicast* no necesita el *entitlement*.
+- **Ojo:** el QR con IP **no** evita el aviso de "Red local". Abrir una conexión TCP o mandar UDP *unicast* a otro teléfono de la red también dispara ese permiso. Si el jugador lo niega, la partida local no conecta, así que hay que explicarle por qué se pide.
 - Muchas redes públicas o de invitados (cafés, escuelas) tienen **aislamiento de clientes**, que bloquea la conexión entre teléfonos. El hotspot resuelve ese caso.
 
 **Alternativa a evaluar:** **Epic Online Services (EOS)** ofrece *lobbies*, *relay* P2P y *matchmaking* sin costo, y tiene plugin para Unity **[Conocimiento previo — verificar términos vigentes]**.
@@ -284,22 +285,23 @@ Fuentes: [hilo LAN con NGO](https://discussions.unity.com/t/creating-an-offline-
 | Apple Developer Program | **USD 99/año** (≈ MXN 1,890; Apple puede mostrarlo en moneda local) | [developer.apple.com, página consultada directamente](https://developer.apple.com/support/enrollment/) |
 | Persona física vs empresa | Como **persona** el vendedor en la App Store aparece con tu nombre legal. Como **organización** aparece el nombre de la entidad legal. Los negocios unipersonales deben inscribirse como persona | Ídem |
 | Requisitos de organización | Entidad legal (no se aceptan nombres comerciales ni DBA); **número D-U-N-S** (9 dígitos, gratis); autoridad para firmar contratos; correo con el dominio de la empresa; sitio web público y funcional. Apple puede pedir documentos notariados | Ídem |
-| SDK mínimo | Desde el **28-abr-2026** toda app nueva se compila con **Xcode 26** y el SDK de iOS 26. La versión mínima de iOS que soporta tu app puede seguir siendo vieja | [Apple: próximos requisitos](https://developer.apple.com/news/upcoming-requirements/), [9to5Mac](https://9to5mac.com/2026/02/03/apple-to-update-minimum-sdk-requirements-for-all-app-store-submissions/) |
-| Comisión | 15 % para desarrolladores con menos de USD 1 M al año (Small Business Program); 30 % por encima | **[Conocimiento previo — verificar]** |
+| SDK mínimo | Desde el **28-abr-2026** todo lo que se sube a App Store Connect se compila con **Xcode 26** y el SDK de iOS 26. **Corrección (verificado 23-nov-2026):** desde el **9-sep-2026** las apps de iOS y iPadOS también deben tener como versión mínima (*deployment target*) **iOS 13 o superior**; ya no puede ser "cualquier versión vieja" | [Apple: próximos requisitos](https://developer.apple.com/news/upcoming-requirements/) (consultada directamente el 23-nov-2026), [9to5Mac](https://9to5mac.com/2026/02/03/apple-to-update-minimum-sdk-requirements-for-all-app-store-submissions/) |
+| Clasificación por edad | Desde el **31-ene-2026** Apple actualizó las clasificaciones por edad; hay que responder las nuevas preguntas de clasificación en App Store Connect para que no se frenen los envíos | [Apple: próximos requisitos](https://developer.apple.com/news/upcoming-requirements/) (verificado 23-nov-2026) |
+| Comisión | **15 %** con el **App Store Small Business Program** si los *proceeds* (lo que te queda después de la comisión de Apple y ciertos impuestos) fueron de **hasta USD 1 M** el año calendario anterior, sumando las cuentas asociadas (empresas que controlas o que te controlan). **Hay que inscribirse**; no es automático. Si en el año pasas de USD 1 M, a las ventas siguientes se les aplica la comisión estándar (30 %) | [Apple Small Business Program](https://developer.apple.com/app-store/small-business-program/) (verificado 23-nov-2026) |
 
-**Recomendación:** inscribirse como **organización**, a nombre de la sociedad que será dueña del juego. Así la tienda muestra la marca. Tramiten el D-U-N-S **ya**: puede tardar hasta ~30 días (Google habla de hasta 30 días en su ayuda y de 28 en una FAQ de jul-2026, [Android FAQ](https://developer.android.com/developer-verification/guides/faq)).
+**Recomendación:** inscribirse como **organización**, a nombre de la sociedad que será dueña del juego. Así la tienda muestra la marca. Tramiten el D-U-N-S **ya**: puede tardar **hasta 28 días** según la FAQ oficial de verificación de desarrolladores de Android (entrada fechada el 3-sep-2025, [Android FAQ](https://developer.android.com/developer-verification/guides/faq), verificado 23-nov-2026). La ayuda de Play Console menciona hasta 30 días **[No pude abrirla en la verificación]**.
 
 ### 8.2 Google Play
 
 | Concepto | Dato | Fuente |
 |---|---|---|
-| Registro | **USD 25 una sola vez** (≈ MXN 478) | [Ayuda de Play Console](https://support.google.com/googleplay/android-developer/answer/13628312) |
+| Registro | **USD 25 una sola vez** (≈ MXN 478). La FAQ oficial de verificación de Android lo confirma de forma indirecta al hablar de "la cuota de registro de USD 25 de Play" (verificado 23-nov-2026) | [Ayuda de Play Console](https://support.google.com/googleplay/android-developer/answer/13628312), [Android FAQ](https://developer.android.com/developer-verification/guides/faq) |
 | Prueba cerrada obligatoria | Las **cuentas personales creadas después del 13-nov-2023** deben hacer una prueba cerrada con **al menos 12 testers inscritos de forma continua durante 14 días** antes de pedir acceso a producción. Algunos blogs dicen que antes eran 20 testers **[Conflicto entre fuentes sobre la fecha del cambio]** | [Ayuda Google](https://support.google.com/googleplay/android-developer/answer/14151465), [ontest.app](https://ontest.app/blog/google-play-12-testers-14-days-requirement-explained) |
 | Cuentas de organización | Necesitan D-U-N-S y según blogs **están exentas** de la prueba de 12 testers **[No confirmado por Google]** | [dev.to](https://dev.to/samfadigitalstack/google-play-closed-testing-a-practical-guide-to-the-12-testers-and-14-days-requirement-1p03), [Ayuda Google, D-U-N-S](https://support.google.com/googleplay/android-developer/answer/13634885) |
-| API objetivo | Desde el **31-ago-2026** las apps nuevas deben apuntar a **Android 16 (API 36)** | [Android Developers](https://developer.android.com/google/play/requirements/target-sdk) |
-| Páginas de 16 KB | Las apps para Android 15+ deben soportar páginas de memoria de 16 KB. Unity lo soporta desde 6000.0.38f1 (Unity 6.0) y 2022.3.56f1. Los plugins nativos de terceros pueden romperlo | [Unity Discussions](https://discussions.unity.com/t/info-unity-engine-support-for-16-kb-memory-page-sizes-android-15/1589588), [Android Developers](https://developer.android.com/games/develop/build-in-unity) |
-| Verificación de identidad | Desde sep-2026 Google exige identidad, y D-U-N-S para organizaciones, incluso a quien distribuye fuera de Play | [Biometric Update](https://www.biometricupdate.com/202508/google-unveils-identity-verification-rules-for-android-app-developers) |
-| Formato | AAB obligatorio para apps nuevas y solo 64 bits | **[Conocimiento previo]** |
+| API objetivo | Desde el **31-ago-2026** las apps nuevas **y las actualizaciones** deben apuntar a **Android 16 (API 36)**. Se podía pedir prórroga hasta el 1-nov-2026. Las apps ya publicadas deben apuntar al menos a API 35 para seguir visibles a usuarios nuevos con Android más reciente (verificado 23-nov-2026) | [Android Developers](https://developer.android.com/google/play/requirements/target-sdk) |
+| Páginas de 16 KB | Toda app que apunte a Android 15 (API 35) o superior debe soportar páginas de memoria de 16 KB en dispositivos de 64 bits. **Desde el 1-feb-2027 Play no deja publicar actualizaciones sin ese soporte.** Google confirma que Unity 2021, 2022 y Unity 6 lo soportan; los números de parche exactos (6000.0.38f1 y 2022.3.56f1) vienen del foro de Unity y no los pude re-verificar. Los plugins nativos de terceros pueden romperlo | [Android: tamaños de página](https://developer.android.com/guide/practices/page-sizes) (verificado 23-nov-2026), [Android Developers: Unity](https://developer.android.com/games/develop/build-in-unity), [Unity Discussions](https://discussions.unity.com/t/info-unity-engine-support-for-16-kb-memory-page-sizes-android-15/1589588) |
+| Verificación de identidad | **Corrección (verificado 23-nov-2026):** la verificación de desarrolladores de Android se empezó a **aplicar el 30-sep-2026 solo a usuarios de Brasil, Indonesia, Singapur y Tailandia**. La expansión **global (incluido México) es en 2027**. Quien publica en Google Play queda registrado automáticamente desde Play Console (las apps con Play App Signing se registran solas); quien distribuye fuera de Play usa la Android Developer Console (cuota de USD 25 en la cuenta de distribución completa). Las organizaciones necesitan D-U-N-S y un sitio web verificado en Search Console | [Android: verificación de desarrolladores](https://developer.android.com/developer-verification/guides), [FAQ](https://developer.android.com/developer-verification/guides/faq) |
+| Formato | **AAB obligatorio para apps nuevas desde agosto de 2021** (verificado). **Corrección:** Play no exige "solo 64 bits"; exige que, por cada arquitectura nativa de 32 bits que incluyas, incluyas también su versión de 64 bits. En Unity: IL2CPP + ARM64 (el ARMv7 es opcional) | [Android App Bundle](https://developer.android.com/guide/app-bundle), [Requisito de 64 bits](https://developer.android.com/google/play/requirements/64-bit) (verificados 23-nov-2026) |
 
 ### 8.3 ¿Necesitamos una Mac?
 
@@ -307,8 +309,8 @@ Para **compilar iOS hace falta macOS con Xcode**, sea propio o en la nube. El fl
 
 | Opción | Costo | Comentario |
 |---|---|---|
-| **Mac mini propia** | M4 (16 GB / 512 GB) desde **MXN 19,499** en la Apple Store México. Hay un modelo nuevo con chip M6 desde **MXN 19,999** (preventa sep-2026) | La mejor para depurar y perfilar en iPhone ([Xataka, M4](https://www.xataka.com.mx/ordenadores/apple-acaba-eliminar-uno-sus-productos-atractivos-mexico-mac-mini-15-mil-pesos), [Xataka, M6](https://www.xataka.com.mx/ordenadores/nueva-apple-mac-mini-m6-m5-pro-lanzamiento-precio-mexico-caracteristicas-especificaciones-ficha-tecnica)) **[Verificar disponibilidad]** |
-| **Unity Build Automation** | 100 minutos Mac gratis cada mes; después ~USD 0.07 por minuto (≈ MXN 1.34) **[No confirmado para 2026]** | Integrado con Unity ([Unity Discussions](https://discussions.unity.com/t/is-mac-build-100-free-minutes-for-unity-build-after-q1-of-2026-every-month-or-only-once/1696004)) |
+| **Mac mini propia** | M4 (16 GB / 512 GB) desde **MXN 19,499** en la Apple Store México. Hay un modelo nuevo con chip M6 desde **MXN 19,999** (preventa sep-2026) | La mejor para depurar y perfilar en iPhone ([Xataka, M4](https://www.xataka.com.mx/ordenadores/apple-acaba-eliminar-uno-sus-productos-atractivos-mexico-mac-mini-15-mil-pesos), [Xataka, M6](https://www.xataka.com.mx/ordenadores/nueva-apple-mac-mini-m6-m5-pro-lanzamiento-precio-mexico-caracteristicas-especificaciones-ficha-tecnica)) **[Verificar disponibilidad. Ningún precio ni modelo de Mac mini se pudo re-verificar el 23-nov-2026; confirmen en apple.com/mx antes de comprar]** |
+| **Unity Build Automation** | 100 minutos Mac gratis cada mes; después ~USD 0.07 por minuto (≈ MXN 1.34) **[No confirmado para 2026: el propio hilo citado pregunta si, tras el primer trimestre de 2026, los 100 minutos son mensuales o un solo regalo. No pude abrir unity.com el 23-nov-2026]** | Integrado con Unity ([Unity Discussions](https://discussions.unity.com/t/is-mac-build-100-free-minutes-for-unity-build-after-q1-of-2026-every-month-or-only-once/1696004)) |
 | **Codemagic** | **500 minutos macOS M2 gratis al mes** (cuenta personal); después USD 0.095 por minuto (≈ MXN 1.81) | El nivel gratuito más generoso ([docs Codemagic](https://docs.codemagic.io/billing/pricing/)) |
 | **GitHub Actions (macOS)** | ~USD 0.062 por minuto. El plan Free incluye un crédito mensual equivalente a ~190 minutos macOS **[No confirmado; fuentes secundarias]** | Requiere GameCI o similar. Activar una licencia Personal en CI tiene complicaciones ([lizard.build](https://lizard.build/blog/github-actions-pricing), [GameCI](https://www.github.com/game-ci/unity-builder), [foro Unity](https://discussions.unity.com/t/unity-no-longer-supports-manual-activation-of-personal-licenses/926760)) |
 
@@ -449,7 +451,11 @@ Cómo se arma el MVP de **USD 15k–40k**:
 1. **¿Qué empresa publica?** Si los ingresos más fondos de esa entidad superan USD 200k en 12 meses, se requiere Unity Pro para cada puesto. Hay que revisarlo con su contador.
 2. **Precios oficiales vigentes de Unity Relay, Lobby, Cloud Save y Cloud Content Delivery.** La página oficial de precios estuvo bloqueada en esta sesión.
 3. **Si las cuentas de organización de Google Play están exentas de la prueba de 12 testers.** Solo lo afirman blogs.
-4. **Reglas de Apple y Google para desbloquear contenido digital con compras físicas** (por ejemplo, "compra la playera o el art toy y recibe el traje"). La guía 3.1.1 de Apple restringe desbloquear con códigos o QR. Requiere revisión legal antes de diseñar esa mecánica **[Conocimiento previo]**.
+4. **Reglas de Apple y Google para desbloquear contenido digital con compras físicas** (por ejemplo, "compra la playera o el art toy y recibe el traje"). Verificado en las [App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/) el 23-nov-2026:
+   - La guía **3.1.1** prohíbe desbloquear funciones o contenido con mecanismos propios como **claves de licencia, marcadores de realidad aumentada o códigos QR**. Lo que se desbloquea dentro de la app debe venderse con compra dentro de la app (IAP).
+   - La guía **3.1.4** abre una excepción limitada: las funciones que trabajan junto con un **producto físico aprobado (por ejemplo, un juguete)** de forma *opcional* pueden desbloquearse sin IAP, **siempre que también exista la opción de comprarlas con IAP**. Tampoco se puede obligar a comprar productos no relacionados para desbloquear algo.
+   - En la práctica, "código impreso en la playera → traje gratis" choca con la 3.1.1. Un art toy podría encajar en la 3.1.4 solo si el traje también se vende por IAP.
+   - Las reglas de Google no se revisaron aquí. Todo esto requiere revisión legal antes de diseñar la mecánica.
 5. **Si Photon Fusion 2 funciona en LAN sin internet.** No lo confirmé. Si la fase 1 debe funcionar sin internet, NGO es la opción segura.
 6. **Permiso de multicast en iOS** para la búsqueda automática de partidas en la red local. Hay que confirmar el trámite con Apple o diseñar la conexión con QR.
 7. **Tarifas reales de freelancers.** Las de este reporte son estimaciones; conviene pedir 3 cotizaciones por rol.
@@ -582,3 +588,67 @@ Cómo se arma el MVP de **USD 15k–40k**:
 
 **Tipo de cambio**
 - https://dolardof.com/
+
+---
+
+## Verificación de datos (2026-11-23)
+
+**Cómo se hizo y sus límites.** Una revisión independiente releyó el reporte y volvió a comprobar los datos de alto riesgo. El presupuesto de búsquedas web de la sesión ya estaba agotado, así que **no se hizo ninguna búsqueda nueva**. Solo se pudieron abrir directamente páginas de **developer.apple.com** y **developer.android.com**. Los demás dominios (unity.com, photonengine.com, revenuecat.com, codemagic.io, unrealengine.com, support.google.com) no estaban permitidos en la red de la sesión. Por eso todo lo que depende de esos sitios queda como **no verificado**, aunque no necesariamente esté mal. Para re-verificarlo hay que permitir esos dominios o ampliar el límite de búsquedas.
+
+### Corregido
+
+| # | Qué decía | Qué es correcto | Fuente |
+|---|---|---|---|
+| 1 | La verificación de identidad de Google aplica desde sep-2026, también fuera de Play | El 30-sep-2026 empezó a aplicarse **solo a usuarios de Brasil, Indonesia, Singapur y Tailandia**. La fase **global (México incluido) es en 2027**. En Play el registro es automático desde Play Console | [developer.android.com/developer-verification/guides](https://developer.android.com/developer-verification/guides) |
+| 2 | La versión mínima de iOS "puede seguir siendo vieja" | Desde el **9-sep-2026** las apps de iOS/iPadOS deben tener **iOS 13 o superior** como versión mínima | [Apple: próximos requisitos](https://developer.apple.com/news/upcoming-requirements/) |
+| 3 | AAB obligatorio y "solo 64 bits" | El AAB es obligatorio para apps nuevas desde ago-2021. El requisito de 64 bits pide incluir la versión de 64 bits de cada arquitectura de 32 bits; **no prohíbe** incluir 32 bits | [App Bundle](https://developer.android.com/guide/app-bundle), [64 bits](https://developer.android.com/google/play/requirements/64-bit) |
+| 4 | Comisión de Apple: 15 % con menos de USD 1 M al año **[Conocimiento previo]** | 15 % con el Small Business Program con **hasta USD 1 M de *proceeds*** (netos de comisión) el año anterior, sumando cuentas asociadas. **Requiere inscripción.** Si se rebasa en el año, aplica la comisión estándar | [Small Business Program](https://developer.apple.com/app-store/small-business-program/) |
+| 5 | D-U-N-S: "28 días en una FAQ de jul-2026" | La FAQ oficial dice **hasta 28 días**; esa entrada está fechada el **3-sep-2025** | [Android FAQ](https://developer.android.com/developer-verification/guides/faq) |
+| 6 | El QR con IP "evita ese trámite" (implícito: evita los permisos de red) | El QR evita el *entitlement* de multicast, pero **no el aviso de "Red local"**. El TCP o UDP *unicast* hacia otro teléfono también lo dispara | [Apple TN3179](https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy) |
+| 7 | Desbloquear trajes con compras físicas: solo la guía 3.1.1 **[Conocimiento previo]** | 3.1.1 confirmada (prohíbe códigos QR y claves). Se agregó la excepción limitada de la **3.1.4**: un producto físico aprobado, como un juguete, de forma opcional, solo si también existe la compra por IAP | [App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/) |
+| 8 | Remisión a "sección 9, dudas" | Las dudas están en la **sección 12** | Revisión interna |
+| 9 | 16 KB: sin fecha límite | Se agregó la fecha: desde el **1-feb-2027** Play no acepta actualizaciones sin soporte de 16 KB (apps que apuntan a API 35+) | [Android: tamaños de página](https://developer.android.com/guide/practices/page-sizes) |
+
+### Confirmado con fuente oficial
+
+- Apple Developer Program: **USD 99/año**. La cuenta de organización pide entidad legal (sin DBA ni nombres comerciales), D-U-N-S, autoridad para firmar, correo del dominio y sitio web público; Apple puede pedir documentos notariados ([developer.apple.com/support/enrollment](https://developer.apple.com/support/enrollment/)).
+- **Xcode 26 / SDK iOS 26** obligatorio desde el **28-abr-2026** ([Apple](https://developer.apple.com/news/upcoming-requirements/)).
+- Google Play: **API 36** obligatoria para apps nuevas y actualizaciones desde el **31-ago-2026**, con prórroga posible al 1-nov-2026 ([Android](https://developer.android.com/google/play/requirements/target-sdk)).
+- Google Play: cuota de **USD 25** (confirmada de forma indirecta por la FAQ oficial de Android).
+- Apps que apuntan a Android 15+ deben soportar **páginas de 16 KB**. Unity 2021, 2022 y 6 lo soportan.
+- Permiso de **Red local** desde iOS 14 (`NSLocalNetworkUsageDescription`). El ***entitlement* de multicast** es obligatorio en iOS para *broadcast* o *multicast* y existe un formulario de solicitud de Apple.
+- Guía **3.1.1** de Apple: no se pueden desbloquear funciones con QR, claves o marcadores de RA.
+
+### No se pudo verificar (dominio bloqueado o sin búsquedas disponibles)
+
+- **Unity:**
+  - Pro a USD 2,310/puesto/año (o USD 210/mes) desde el 12-ene-2026.
+  - Límite de Personal (USD 200k) y pantalla de inicio opcional.
+  - Cancelación del Runtime Fee (12-sep-2024).
+  - Fechas de 6.3 LTS (4-dic-2025, soporte hasta dic-2027), fin de 6.0 LTS (oct-2026), 6.5, 6.6 y 6.7 LTS.
+  - Precios de Unity AI (USD 10/mes por 1,000 créditos).
+  - Plugin oficial para Claude Code (9-sep-2026, 29 *skills*).
+  - Licencia de NGO 2.x.
+  - Build Automation (100 min gratis, USD 0.07/min).
+  - Varios de estos datos coinciden con conocimiento previo hasta mediados de 2026 (Runtime Fee cancelado, umbral de USD 200k, pantalla de inicio opcional, Pro en USD 2,200 en 2025). Aun así, deben revisarse en unity.com.
+- **Unity Relay:** 50 CCU gratis y luego USD 0.16 por CCU. El reporte 04 da la misma cifra por su cuenta, pero no es una verificación propia.
+- **Photon Fusion 2:** 100 CCU gratis; USD 95 por 100 CCU durante 12 meses; USD 125/mes por 500 CCU. Coincide con el reporte 04 y no se verificó por separado.
+- **Google Play:**
+  - Prueba cerrada de 12 testers × 14 días para cuentas personales creadas después del 13-nov-2023.
+  - Si las cuentas de organización están exentas.
+  - Fecha en que bajó de 20 a 12 testers (según conocimiento previo, dic-2024).
+  - No se pudo abrir support.google.com.
+- **Unreal:** 5 % de regalías arriba de USD 1 M por juego y 3.5 % con *Launch Everywhere with Epic* desde el 1-ene-2025. Coincide con conocimiento previo; no se re-verificó.
+- **Builds en la nube:**
+  - Codemagic: 500 min macOS M2 gratis al mes y USD 0.095/min.
+  - GitHub Actions: ~USD 0.062/min macOS y crédito del plan Free.
+- **RevenueCat:** gratis hasta USD 2.5k de MTR y luego 1 %. Además hay **conflicto con el reporte 05** sobre si el 1 % es sobre el total o solo sobre el excedente.
+- **Anuncios:** fin de ironSource Exchange e iAds el 31-dic-2026; mediación gratuita y más de 25 redes en AppLovin MAX.
+- **Godot:** 4.7.2 (ago-2026), GABE estable (2-jun-2026) y plugin AdMob de Poing Studios v5.0.0 (22-jul-2026).
+- **Otros motores:** precios de GameMaker (Professional ≈ USD 99.99) y regalía de Flax (≈ 4 %).
+- **Hardware y mercado:**
+  - Mac mini M4 desde MXN 19,499 y supuesto Mac mini M6 desde MXN 19,999.
+  - Teléfonos más vendidos (Galaxy A07, Moto G06).
+  - Cuota Android/iOS en México: **conflicto con el reporte 02**, que da 74.1/25.9 a oct-2026 frente a 78.7/21.3 a jul-2026 en este reporte.
+- **Tipo de cambio:** FIX de 19.0270 al 20-nov-2026.
+- **Estimaciones propias del reporte** (tarifas de freelancers, presupuestos, tiempos y presupuestos de polígonos): no son datos verificables; siguen siendo estimaciones.
