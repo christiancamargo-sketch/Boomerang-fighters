@@ -4,6 +4,8 @@
 // local y la presentación la dibuja (con interpolación).
 // v1: estado completo en ~0.6–1 KB. En online se puede pasar a
 // "deltas" sin cambiar la simulación.
+// v2 (spec v0.2): modo, muerte súbita (muros), charcos, muros de tag,
+// lata caliente, fila de La Reta, gorras desviadas/marcas y racha.
 // ─────────────────────────────────────────────────────────────
 using System.Collections.Generic;
 using System.IO;
@@ -12,7 +14,7 @@ namespace BoomerangFighters.Core
 {
     public sealed partial class MatchSimulation
     {
-        public const byte SnapshotVersion = 1;
+        public const byte SnapshotVersion = 2;
 
         public void WriteSnapshot(BinaryWriter w)
         {
@@ -25,6 +27,11 @@ namespace BoomerangFighters.Core
             w.Write((sbyte)MatchWinnerId);
             w.Write(SlowMo);
             w.Write((byte)FreezeTicks);
+            w.Write((byte)Mode);
+            w.Write(RoundTime);
+            w.Write((byte)SuddenDeath);
+            w.Write(Arena.WallInset);
+            w.Write((byte)LastRoundEndReason);
 
             w.Write((byte)Arena.Hazards.Count);
             foreach (var hz in Arena.Hazards) { w.Write(hz.T); w.Write(hz.Z); w.Write((byte)hz.State); }
@@ -36,7 +43,7 @@ namespace BoomerangFighters.Core
                 w.Write(p.Vel.x); w.Write(p.Vel.y);
                 w.Write(p.Facing.Angle);
                 w.Write(p.AimDir.Angle);
-                byte flags = (byte)((p.Alive ? 1 : 0) | (p.HasCap ? 2 : 0) | (p.Charging ? 4 : 0) | (p.Aiming ? 8 : 0) | (p.Shield ? 16 : 0));
+                byte flags = (byte)((p.Alive ? 1 : 0) | (p.HasCap ? 2 : 0) | (p.Charging ? 4 : 0) | (p.Aiming ? 8 : 0) | (p.Shield ? 16 : 0) | (p.Benched ? 32 : 0));
                 w.Write(flags);
                 w.Write(p.ChargeT);
                 w.Write(p.DashT);
@@ -45,6 +52,8 @@ namespace BoomerangFighters.Core
                 w.Write((byte)p.Score);
                 w.Write((byte)p.Kos);
                 w.Write((byte)p.RoundWins);
+                w.Write((byte)p.Streak);
+                w.Write(p.PushT);
                 w.Write(p.Cap.Id);
             }
 
@@ -59,6 +68,9 @@ namespace BoomerangFighters.Core
                 w.Write(c.Y);
                 w.Write(c.Radius);
                 w.Write((byte)c.Power);
+                w.Write((byte)((c.Bounced ? 1 : 0) | (c.Deflected ? 2 : 0)));
+                w.Write((sbyte)c.DeflectBy);
+                w.Write((sbyte)c.MarkedId);
             }
 
             w.Write((byte)Pickups.Count);
@@ -68,6 +80,32 @@ namespace BoomerangFighters.Core
                 w.Write((byte)pu.Type);
                 w.Write(pu.Pos.x); w.Write(pu.Pos.y);
             }
+
+            w.Write((byte)Puddles.Count);
+            foreach (var pd in Puddles)
+            {
+                w.Write(pd.Id); w.Write((sbyte)pd.OwnerId);
+                w.Write(pd.Pos.x); w.Write(pd.Pos.y);
+                w.Write(pd.T); w.Write(pd.Radius);
+            }
+
+            w.Write((byte)Arena.TagWalls.Count);
+            foreach (var tw in Arena.TagWalls)
+            {
+                w.Write(tw.Id); w.Write((sbyte)tw.OwnerId);
+                w.Write(tw.Pos.x); w.Write(tw.Pos.y);
+                w.Write(tw.Dir.Angle);
+                w.Write(tw.HalfLen); w.Write(tw.HalfThick); w.Write(tw.Life);
+            }
+
+            w.Write((sbyte)HotCanHolder);
+            w.Write(HotCanTimer);
+            w.Write((sbyte)HotCanImmuneId);
+            w.Write(HotCanImmuneT);
+
+            w.Write((sbyte)RetaFighters[0]); w.Write((sbyte)RetaFighters[1]);
+            w.Write((byte)RetaQueue.Count);
+            foreach (var id in RetaQueue) w.Write((byte)id);
         }
 
         public void ReadSnapshot(BinaryReader r)
@@ -82,6 +120,12 @@ namespace BoomerangFighters.Core
             MatchWinnerId = r.ReadSByte();
             SlowMo = r.ReadSingle();
             FreezeTicks = r.ReadByte();
+            var mode = (GameMode)r.ReadByte();
+            if (mode != Mode) throw new InvalidDataException($"Snapshot de modo {mode}, la partida local es {Mode}.");
+            RoundTime = r.ReadSingle();
+            SuddenDeath = (SuddenDeathStage)r.ReadByte();
+            Arena.WallInset = r.ReadSingle();
+            LastRoundEndReason = (RoundEndReason)r.ReadByte();
 
             int hzCount = r.ReadByte();
             for (int i = 0; i < hzCount; i++)
@@ -104,13 +148,16 @@ namespace BoomerangFighters.Core
                 float chargeT = r.ReadSingle(), dashT = r.ReadSingle(), inv = r.ReadSingle();
                 var power = (PowerUp)r.ReadByte();
                 int score = r.ReadByte(), kos = r.ReadByte(), rw = r.ReadByte();
+                int streak = r.ReadByte();
+                float pushT = r.ReadSingle();
                 capIds[i] = r.ReadInt32();
                 if (p == null) continue;
                 p.Pos = pos; p.Vel = vel; p.Facing = facing; p.AimDir = aim;
                 p.Alive = (flags & 1) != 0; p.HasCap = (flags & 2) != 0; p.Charging = (flags & 4) != 0;
-                p.Aiming = (flags & 8) != 0; p.Shield = (flags & 16) != 0;
+                p.Aiming = (flags & 8) != 0; p.Shield = (flags & 16) != 0; p.Benched = (flags & 32) != 0;
                 p.ChargeT = chargeT; p.DashT = dashT; p.SpawnInvuln = inv;
                 p.Power = power; p.Score = score; p.Kos = kos; p.RoundWins = rw;
+                p.Streak = streak; p.PushT = pushT;
             }
 
             // gorras: se reutilizan por Id para que la vista no parpadee
@@ -129,6 +176,12 @@ namespace BoomerangFighters.Core
                 c.Y = r.ReadSingle();
                 c.Radius = r.ReadSingle();
                 c.Power = (PowerUp)r.ReadByte();
+                byte cf = r.ReadByte();
+                c.Bounced = (cf & 1) != 0;
+                c.DeflectBy = r.ReadSByte();
+                c.MarkedId = r.ReadSByte();
+                // la vista solo necesita saber si va desviada; el tiempo exacto vive en el host
+                c.DeflectT = (cf & 2) != 0 ? T.Cap.DeflectLethalTime : 0f;
                 Caps.Add(c);
                 byId[id] = c;
             }
@@ -141,6 +194,46 @@ namespace BoomerangFighters.Core
             {
                 Pickups.Add(new Pickup { Id = r.ReadInt32(), Type = (PowerUp)r.ReadByte(), Pos = new Vec2(r.ReadSingle(), r.ReadSingle()) });
             }
+
+            // charcos y muros: también se reutilizan por Id
+            var oldPd = new Dictionary<int, Puddle>();
+            foreach (var pd in Puddles) oldPd[pd.Id] = pd;
+            Puddles.Clear();
+            int pdc = r.ReadByte();
+            for (int i = 0; i < pdc; i++)
+            {
+                int id = r.ReadInt32();
+                if (!oldPd.TryGetValue(id, out var pd)) pd = new Puddle { Id = id };
+                pd.OwnerId = r.ReadSByte();
+                pd.Pos = new Vec2(r.ReadSingle(), r.ReadSingle());
+                pd.T = r.ReadSingle(); pd.Radius = r.ReadSingle();
+                Puddles.Add(pd);
+            }
+
+            var oldW = new Dictionary<int, TagWall>();
+            foreach (var tw in Arena.TagWalls) oldW[tw.Id] = tw;
+            Arena.TagWalls.Clear();
+            int twc = r.ReadByte();
+            for (int i = 0; i < twc; i++)
+            {
+                int id = r.ReadInt32();
+                if (!oldW.TryGetValue(id, out var tw)) tw = new TagWall { Id = id };
+                tw.OwnerId = r.ReadSByte();
+                tw.Pos = new Vec2(r.ReadSingle(), r.ReadSingle());
+                tw.Dir = Vec2.FromAngle(r.ReadSingle());
+                tw.HalfLen = r.ReadSingle(); tw.HalfThick = r.ReadSingle(); tw.Life = r.ReadSingle();
+                Arena.TagWalls.Add(tw);
+            }
+
+            HotCanHolder = r.ReadSByte();
+            HotCanTimer = r.ReadSingle();
+            HotCanImmuneId = r.ReadSByte();
+            HotCanImmuneT = r.ReadSingle();
+
+            RetaFighters[0] = r.ReadSByte(); RetaFighters[1] = r.ReadSByte();
+            RetaQueue.Clear();
+            int qc = r.ReadByte();
+            for (int i = 0; i < qc; i++) RetaQueue.Add(r.ReadByte());
         }
 
         public static void WriteEvent(BinaryWriter w, SimEvent e)

@@ -25,6 +25,11 @@ namespace BoomerangFighters.Core
         public float MeleeCooldown = 0.45f;
         public float SlowMult = 0.5f;
         public float SpawnInvuln = 0.6f;
+        // A3: empujón sin gorra (2.5 m en 0.2 s, recarga 0.8 s; patea 4 m una gorra caída ajena)
+        public float ShoveDistance = 2.5f;
+        public float ShoveTime = 0.2f;
+        public float ShoveCooldown = 0.8f;
+        public float ShoveKickDistance = 4f;
     }
 
     [Serializable]
@@ -52,8 +57,20 @@ namespace BoomerangFighters.Core
         public float GroundAutoReturn = 3f;  // la gorra tirada regresa sola a los 3 s
         public float HomingTurn = 4.5f;      // Tatuaje
         public float HomingRange = 11f;
-        public float ExplosionRadius = 2.3f; // Tinta derramada
+        public float ExplosionRadius = 2.0f; // Tinta derramada · Charco: radio final
+        public float PuddleGrowTime = 0.4f;  // el charco crece 0.4 s (visible) y luego noquea
         public float GroundFadeTime = 1.2f;
+        public float StickerScale = 2f;      // Sticker XL: gorra al doble
+        public float StickerSpeedMult = 0.9f; // A5: Sticker XL 10 % más lenta
+        public float ClankRadiusMult = 0.85f; // A6: radio de choque gorra-gorra = 85 % de la suma
+        // A4: "Te la regreso"
+        public float DeflectSpeedMult = 1.2f;
+        public float DeflectMaxSpeed = 22f;
+        public float DeflectLethalTime = 0.6f;
+        // Grafiti · Muro de Tag
+        public float TagWallLength = 2.5f;
+        public float TagWallThickness = 0.4f;
+        public float TagWallLife = 3f;
     }
 
     [Serializable]
@@ -65,6 +82,28 @@ namespace BoomerangFighters.Core
         public float SlowMoTime = 0.9f;
         public float SlowMoScale = 0.3f;
         public int HitStopTicks = 5;         // ~80 ms congelado al noquear
+        public int DoubleKoTicks = 6;        // A1: si el último cae antes de 6 ticks (0.1 s), empate
+        // A2: muerte súbita
+        public float SuddenDeathAt = 20f;
+        public float SuddenDeathWarn = 1f;
+        public float SuddenDeathWallSpeed = 0.5f;
+        public float SuddenDeathMinWidth = 8f;
+        public float SuddenDeathTieAt = 45f;
+    }
+
+    [Serializable]
+    public sealed class ModeTuning
+    {
+        // Lata Caliente
+        public float HotCanMin = 10f;
+        public float HotCanMax = 20f;
+        public float HotCanImmunity = 0.5f;
+        // La Reta
+        public int RetaStreakToWin = 3;
+        public int RetaMaxRounds = 10;
+        // Reto del Día: puntaje = KOs × 100 + rondas ganadas × 300 − segundos de juego (fase Play, redondeados como en la web)
+        public int RetoKoPoints = 100;
+        public int RetoRoundPoints = 300;
     }
 
     [Serializable]
@@ -87,6 +126,7 @@ namespace BoomerangFighters.Core
         public CapTuning Cap = new CapTuning();
         public RoundTuning Round = new RoundTuning();
         public PickupTuning Pickups = new PickupTuning();
+        public ModeTuning Modes = new ModeTuning();
 
         public static Tuning Default() => new Tuning();
     }
@@ -97,8 +137,8 @@ namespace BoomerangFighters.Core
         None = 0,
         Serigrafia = 1, // "tiraje": 2 copias en fila
         Tatuaje = 2,    // teledirigida
-        Tinta = 3,      // explosiva
-        Grafiti = 4,    // rastro que alenta
+        Tinta = 3,      // charco que crece y noquea
+        Grafiti = 4,    // muro de tag (respaldo: rastro que alenta)
         Bordado = 5,    // escudo de un golpe
         Sticker = 6,    // gorra gigante
     }
@@ -127,8 +167,8 @@ namespace BoomerangFighters.Core
             {
                 case PowerUp.Serigrafia: return "Tiraje";
                 case PowerUp.Tatuaje: return "Teledirigida";
-                case PowerUp.Tinta: return "Explosiva";
-                case PowerUp.Grafiti: return "Rastro de aerosol";
+                case PowerUp.Tinta: return "Charco";
+                case PowerUp.Grafiti: return "Muro de Tag";
                 case PowerUp.Bordado: return "Escudo";
                 case PowerUp.Sticker: return "Gorra gigante";
                 default: return "";
@@ -156,14 +196,15 @@ namespace BoomerangFighters.Core
     public struct BotProfile
     {
         public float Reaction, AimError, DodgeChance, ThrowRate, Lead;
+        public float DeflectChance; // D: probabilidad de intentar desviar una gorra que viene
 
         public static BotProfile For(BotDifficulty d)
         {
             switch (d)
             {
-                case BotDifficulty.Facil: return new BotProfile { Reaction = 0.55f, AimError = 0.32f, DodgeChance = 0.18f, ThrowRate = 0.9f, Lead = 0.3f };
-                case BotDifficulty.Dificil: return new BotProfile { Reaction = 0.17f, AimError = 0.07f, DodgeChance = 0.75f, ThrowRate = 2.1f, Lead = 1.0f };
-                default: return new BotProfile { Reaction = 0.32f, AimError = 0.16f, DodgeChance = 0.45f, ThrowRate = 1.4f, Lead = 0.75f };
+                case BotDifficulty.Facil: return new BotProfile { Reaction = 0.55f, AimError = 0.32f, DodgeChance = 0.18f, ThrowRate = 0.9f, Lead = 0.3f, DeflectChance = 0.15f };
+                case BotDifficulty.Dificil: return new BotProfile { Reaction = 0.17f, AimError = 0.07f, DodgeChance = 0.75f, ThrowRate = 2.1f, Lead = 1.0f, DeflectChance = 0.6f };
+                default: return new BotProfile { Reaction = 0.32f, AimError = 0.16f, DodgeChance = 0.45f, ThrowRate = 1.4f, Lead = 0.75f, DeflectChance = 0.35f };
             }
         }
     }

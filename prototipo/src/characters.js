@@ -5,19 +5,25 @@
 // Sin gorra en la cabeza = estás desarmado (lectura instantánea).
 // ─────────────────────────────────────────────────────────────
 import * as THREE from 'three';
-import { toonRamp, shirtTexture } from './textures.js';
+import { toonRamp, shirtTexture, capTexture, CAP_DESIGNS } from './textures.js';
 
 const OUTLINE_MAT = new THREE.MeshBasicMaterial({ color: 0x111111, side: THREE.BackSide });
 
-// Tonos de "vinil" para las cabezas (cada especie tiene el suyo)
+// Tonos de "vinil" para las cabezas (cada especie tiene el suyo).
+// Nombres del GDD §8. Los índices 0–5 no cambian (progreso guardado);
+// Lienzo y Axo se agregan al final.
 export const SPECIES = [
-  { id: 'oso', name: 'Oso', vinyl: 0xf3e4cf, ears: 'round' },
-  { id: 'gato', name: 'Gato', vinyl: 0x2f2f36, ears: 'cat' },
-  { id: 'gota', name: 'Gota', vinyl: 0xbfe7ff, ears: 'none' },
-  { id: 'conejo', name: 'Conejo', vinyl: 0xffd6e5, ears: 'bunny' },
-  { id: 'alien', name: 'Alien', vinyl: 0xb8f28a, ears: 'antenna' },
-  { id: 'diablito', name: 'Diablito', vinyl: 0xff8f70, ears: 'horns' },
+  { id: 'oso', name: 'Osote', vinyl: 0xf3e4cf, ears: 'round' },
+  { id: 'gato', name: 'Michi', vinyl: 0x2f2f36, ears: 'cat' },
+  { id: 'gota', name: 'Gotita', vinyl: 0xbfe7ff, ears: 'none' },
+  { id: 'conejo', name: 'Seri', vinyl: 0xffd6e5, ears: 'bunny' },
+  { id: 'alien', name: 'Zurci', vinyl: 0xb8f28a, ears: 'antenna' },
+  { id: 'diablito', name: 'Pegote', vinyl: 0xff8f70, ears: 'horns' },
+  { id: 'lienzo', name: 'Lienzo', vinyl: 0xf7f7f2, ears: 'seam' },
+  { id: 'ajolote', name: 'Axo', vinyl: 0xf6a9c9, ears: 'gills' },
 ];
+// Orden en el vestidor (gratis primero, luego por nivel)
+export const SPECIES_ORDER = [6, 0, 1, 2, 3, 4, 5, 7];
 
 export function toon(color, map = null) {
   return new THREE.MeshToonMaterial({ color, map, gradientMap: toonRamp() });
@@ -45,6 +51,8 @@ const G = {
   antenna: new THREE.CylinderGeometry(0.02, 0.02, 0.3, 6),
   antennaTip: new THREE.SphereGeometry(0.07, 8, 6),
   horn: new THREE.ConeGeometry(0.07, 0.22, 8),
+  seam: new THREE.TorusGeometry(0.47, 0.018, 6, 32),
+  gill: new THREE.CapsuleGeometry(0.035, 0.16, 3, 6),
   capCrown: new THREE.SphereGeometry(0.36, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2),
   capVisor: new THREE.CylinderGeometry(0.3, 0.3, 0.04, 18, 1, false, -Math.PI / 2, Math.PI),
   capButton: new THREE.SphereGeometry(0.05, 8, 6),
@@ -78,24 +86,30 @@ export function makeBlobShadow(size = 1.3) {
 }
 
 // ── La gorra (sirve en la cabeza y como proyectil) ───────────
-export function buildCap(color) {
+// design: id de CAP_DESIGNS. El diseño vive SOLO en la copa: la silueta y
+// el tamaño nunca cambian, y el color del jugador sigue en el aro y el rastro.
+export function buildCap(color, design = 'clasica') {
   const g = new THREE.Group();
-  const mat = toon(color);
+  const def = CAP_DESIGNS[design];
+  const usesTexture = def && !def.playerColor;
+  const mat = usesTexture ? toon(0xffffff, capTexture(design)) : toon(color);
+  const visorColor = usesTexture ? new THREE.Color(def.visor ?? 0x222222) : new THREE.Color(color).multiplyScalar(0.75);
   const crown = withOutline(new THREE.Mesh(G.capCrown, mat), 1.06);
   crown.scale.set(1, 0.72, 1);
-  const visor = withOutline(new THREE.Mesh(G.capVisor, toon(new THREE.Color(color).multiplyScalar(0.75))), 1.08);
+  const visor = withOutline(new THREE.Mesh(G.capVisor, toon(visorColor)), 1.08);
   visor.position.set(0, 0.0, 0.16);
   visor.scale.set(1, 1, 1.25);
   const button = new THREE.Mesh(G.capButton, toon(0xffffff));
   button.position.y = 0.26;
   g.add(crown, visor, button);
   g.userData.mat = mat;
+  g.userData.textured = usesTexture;
   return g;
 }
 
 // ── El muñequito completo ────────────────────────────────────
 export class Toy {
-  constructor({ color = 0xff6a2b, speciesIndex = 0, shirt = 'basica-blanca' } = {}) {
+  constructor({ color = 0xff6a2b, speciesIndex = 0, shirt = 'basica-blanca', capDesign = 'clasica' } = {}) {
     this.color = color;
     this.species = SPECIES[speciesIndex % SPECIES.length];
     this.root = new THREE.Group();
@@ -142,7 +156,7 @@ export class Toy {
     this.pivot.add(this.headGroup);
 
     // gorra en la cabeza (se oculta cuando la lanzas)
-    this.cap = buildCap(color);
+    this.cap = buildCap(color, capDesign);
     this.cap.position.set(0, 0.3, -0.02);
     this.cap.rotation.x = -0.12;
     this.headGroup.add(this.cap);
@@ -206,6 +220,19 @@ export class Toy {
         const a = add(new THREE.Mesh(G.antenna, toon(0x333333))); a.position.set(0.18 * sx, 0.52, 0); a.rotation.z = -0.4 * sx;
         const tip = add(new THREE.Mesh(G.antennaTip, toon(0xfff35c))); tip.position.set(0.25 * sx, 0.66, 0);
       }
+    } else if (kind === 'seam') {
+      // Lienzo: cabeza lisa con la unión del molde marcada (la "plataforma" de los artistas)
+      const seam = new THREE.Mesh(G.seam, toon(0xd8d8d0));
+      seam.rotation.y = Math.PI / 2; seam.scale.set(1.05, 0.92, 0.98);
+      h.add(seam);
+    } else if (kind === 'gills') {
+      // Axo: branquias rosas como brochas, tres por lado
+      const gm = toon(0xe0457b);
+      for (const sx of [-1, 1]) for (let k = 0; k < 3; k++) {
+        const e = add(new THREE.Mesh(G.gill, gm));
+        e.position.set(0.44 * sx, 0.12 - k * 0.12, -0.04);
+        e.rotation.z = sx * (1.0 - k * 0.45);
+      }
     } else if (kind === 'horns') {
       for (const sx of [-1, 1]) { const e = add(new THREE.Mesh(G.horn, toon(0xfff1e0))); e.position.set(0.3 * sx, 0.36, 0.05); e.rotation.z = -0.5 * sx; }
     }
@@ -217,6 +244,7 @@ export class Toy {
   }
 
   setCapColor(hex) {
+    if (this.cap.userData.textured) return; // una gorra con diseño no se tiñe
     this.cap.traverse((o) => { if (o.material && o.material.color && o.material !== OUTLINE_MAT && o.geometry === G.capCrown) o.material.color.setHex(hex); });
   }
 

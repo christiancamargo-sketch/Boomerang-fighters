@@ -1,5 +1,6 @@
 // ─────────────────────────────────────────────────────────────
-// PROTOCOLO de red (v1) — C# puro, sin UnityEngine.
+// PROTOCOLO de red (v2) — C# puro, sin UnityEngine.
+// v2: el StartMatch lleva el modo de juego y los interruptores de reglas.
 // Mismo formato para LAN (UDP directo) y, más adelante, online
 // (Relay / servidor dedicado): solo cambia el ITransport.
 // ─────────────────────────────────────────────────────────────
@@ -11,7 +12,7 @@ namespace BoomerangFighters.Net
 {
     public static class Protocol
     {
-        public const byte Version = 1;
+        public const byte Version = 2;
         public const int DefaultGamePort = 7777;
         public const int DefaultBeaconPort = 47777;
         public const string BeaconMagic = "BFLAN";
@@ -40,6 +41,8 @@ namespace BoomerangFighters.Net
             w.Write(cfg.ArenaId ?? "callejon");
             w.Write((byte)cfg.PointsToWin);
             w.Write(cfg.Seed);
+            w.Write((byte)cfg.Mode);
+            w.Write((cfg.Rules ?? new Rules()).ToBits());
             w.Write((byte)cfg.Slots.Count);
             foreach (var s in cfg.Slots)
             {
@@ -58,6 +61,8 @@ namespace BoomerangFighters.Net
                 ArenaId = r.ReadString(),
                 PointsToWin = r.ReadByte(),
                 Seed = r.ReadUInt32(),
+                Mode = (GameMode)r.ReadByte(),
+                Rules = Rules.FromBits(r.ReadByte()),
             };
             int n = r.ReadByte();
             for (int i = 0; i < n; i++)

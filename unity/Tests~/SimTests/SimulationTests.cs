@@ -197,12 +197,15 @@ namespace BoomerangFighters.Tests
         [Fact]
         public void TintaDerramadaExplotaYNoqueaEnArea()
         {
+            // v0.2: Tinta ahora es Charco (crece 0.4 s antes de noquear), por eso se corre más tiempo
             var sim = new MatchSimulation(H.Config(4));
             H.SkipCountdown(sim);
             H.Place(sim, new Vec2(-8f, -5.5f), new Vec2(-2f, -5.5f), new Vec2(-2f, -3.8f), new Vec2(9f, 5.5f));
             sim.Players[0].Power = PowerUp.Tinta;
-            var ev = H.Run(sim, 40, t => t == 0 ? new[] { H.Throw(new Vec2(1, 0)), default, default, default } : H.Idle(4));
+            var ev = H.Run(sim, 80, t => t == 0 ? new[] { H.Throw(new Vec2(1, 0)), default, default, default } : H.Idle(4));
+            Assert.Contains(ev, e => e.Type == SimEventType.PuddleStart);
             Assert.Contains(ev, e => e.Type == SimEventType.Explode);
+            Assert.Contains(ev, e => e.Type == SimEventType.KO && e.Extra == (byte)KoCause.Splash);
             Assert.False(sim.Players[1].Alive);
             Assert.False(sim.Players[2].Alive);
         }

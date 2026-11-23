@@ -53,8 +53,45 @@ namespace BoomerangFighters.UnityView
                     case SimEventType.Clank:
                     case SimEventType.Deflect:
                         Burst(Greybox.ToUnity(e.Pos, 1.05f), new Color(1f, 0.96f, 0.6f), 10, 6f, 0.05f);
-                        if (e.Type == SimEventType.Deflect || e.Extra == 2) Shake = Mathf.Max(Shake, 0.18f);
+                        // "Te la regreso" (Extra=1): chispazo del color de quien desvió
+                        if (e.Type == SimEventType.Deflect && e.Extra == 1) Burst(Greybox.ToUnity(e.Pos, 1.05f), pc, 14, 7f, 0.08f);
+                        if (e.Type == SimEventType.Deflect || e.Extra == 2) Shake = Mathf.Max(Shake, e.Extra == 1 ? 0.26f : 0.18f);
                         Play(_clips.Clank);
+                        break;
+                    // ── v0.2 ──
+                    case SimEventType.Shove:
+                        Burst(Greybox.ToUnity(e.Pos, 0.6f), Color.white, e.Extra == 0 ? 4 : 12, e.Extra == 0 ? 2f : 5f, 0.08f);
+                        if (e.Extra == 1) Shake = Mathf.Max(Shake, 0.15f);
+                        Play(_clips.Dash);
+                        break;
+                    case SimEventType.Marked:
+                        Burst(Greybox.ToUnity(e.Pos, 2.2f), Greybox.Hex(Greybox.Magenta), 8, 2.5f, 0.07f);
+                        Play(_clips.Beep);
+                        break;
+                    case SimEventType.PuddleStart:
+                        Burst(Greybox.ToUnity(e.Pos, 0.3f), new Color(0.07f, 0.07f, 0.07f), 14, 4f, 0.1f);
+                        break;
+                    case SimEventType.TagWall:
+                        Burst(Greybox.ToUnity(e.Pos, 0.9f), pc, 16, 4f, 0.08f);
+                        Play(_clips.Pickup);
+                        break;
+                    case SimEventType.HotCanPass:
+                        Burst(Greybox.ToUnity(e.Pos, 2.4f), Greybox.Hex(0xD55E00), 10, 3f, 0.08f);
+                        Play(_clips.Pickup);
+                        break;
+                    case SimEventType.HotCanExplode:
+                        Burst(pos, Greybox.Hex(0xD55E00), 26, 10f);
+                        Burst(pos, new Color(0.07f, 0.07f, 0.07f), 20, 8f);
+                        Splat(e.Pos, 1.8f, Greybox.Hex(0xD55E00));
+                        Shake = Mathf.Max(Shake, 0.55f);
+                        Play(_clips.Explode);
+                        break;
+                    case SimEventType.SuddenDeathWarn:
+                        Shake = Mathf.Max(Shake, 0.2f);
+                        Play(_clips.Beep);
+                        break;
+                    case SimEventType.SuddenDeathStart:
+                        Shake = Mathf.Max(Shake, 0.3f);
                         break;
                     case SimEventType.Explode:
                         Burst(pos, new Color(0.07f, 0.07f, 0.07f), 30, 9f);
@@ -111,7 +148,7 @@ namespace BoomerangFighters.UnityView
             }
             parent.rotation = Quaternion.Euler(0f, Random.value * 360f, 0f);
             _splats.Enqueue(parent.gameObject);
-            while (_splats.Count > MaxSplats) Object.Destroy(_splats.Dequeue());
+            while (_splats.Count > MaxSplats) Greybox.DestroyTree(_splats.Dequeue());
         }
 
         public void Tick(float dt)
@@ -131,7 +168,7 @@ namespace BoomerangFighters.UnityView
 
         public void ClearSplats()
         {
-            while (_splats.Count > 0) Object.Destroy(_splats.Dequeue());
+            while (_splats.Count > 0) Greybox.DestroyTree(_splats.Dequeue());
         }
     }
 

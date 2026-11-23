@@ -1,0 +1,16 @@
+<!-- Host sin gráficos: simula partidas de bots (balance) o abre una sala LAN.
+     Es la prueba de que el mismo código puede correr como servidor dedicado. -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Assets/BoomerangFighters/Scripts/Core/**/*.cs" />
+    <Compile Include="../../Assets/BoomerangFighters/Scripts/Net/**/*.cs" />
+    <Compile Include="*.cs" />
+  </ItemGroup>
+</Project>

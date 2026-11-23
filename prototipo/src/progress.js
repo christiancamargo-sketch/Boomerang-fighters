@@ -1,16 +1,19 @@
 // ─────────────────────────────────────────────────────────────
-// PROGRESIÓN LOCAL (demo)
-// XP y niveles, monedas, premio diario con racha, vestidor y canje
-// de códigos. En el juego real esto vive en el servidor (para que
-// nadie se regale monedas editando el teléfono); aquí usamos
-// localStorage solo para demostrar el ciclo de recompensas.
+// PROGRESIÓN LOCAL (spec v0.2 §E): todo vive en el celular, sin backend.
+// XP y niveles 1–50, Gotas (moneda blanda), primera victoria del día,
+// premio diario de 7 días con racha suave, calendario de 28 días,
+// vestidor (playeras + gorras), stickers/emotes, muñequitos por nivel,
+// canje de códigos (simulación del portal web), reglas y Reto del Día.
 // ─────────────────────────────────────────────────────────────
-import { PROGRESSION } from './config.js';
-import { SHIRT_DESIGNS } from './textures.js';
+import { PROGRESSION, DEFAULT_RULES } from './config.js';
+import { SHIRT_DESIGNS, CAP_DESIGNS, weeklyCapId } from './textures.js';
+import { dayKey, daySeed } from './rng.js';
 
 const KEY = 'arena-inkcap.progress.v1';
+const RULES_KEY = 'gorrazo.rules.v1';
+const RETO_KEY = 'gorrazo.retoDelDia.v1';
 
-// Códigos de demostración (en producción se validan en el backend
+// Códigos de demostración (en producción se validan en el portal web
 // y cada código impreso en una etiqueta es único y de un solo uso).
 const DEMO_CODES = {
   'TINTA-2026': 'edicion-limitada',
@@ -36,23 +39,36 @@ SHIRT_DESIGNS['edicion-limitada'] = {
   },
 };
 
-export const SPECIES_UNLOCK = [1, 1, 1, 2, 4, 6]; // nivel requerido por muñequito
+// Muñequitos desbloqueados por nivel (índices de SPECIES):
+// Osote, Michi, Gotita nv2, Seri nv4, Zurci nv6, Pegote nv10, Lienzo, Axo nv15
+export const SPECIES_UNLOCK = [1, 1, 2, 4, 6, 10, 1, 15];
 
-function today() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-function yesterday() {
-  const d = new Date(Date.now() - 86400000);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
+// Cosméticos simples del premio diario
+export const STICKERS = [
+  { id: 'st-gotita', name: 'Gotita feliz', text: 'GOTITA' },
+  { id: 'st-ko', name: 'KO de tinta', text: '¡KO!' },
+  { id: 'st-crew', name: 'Crew', text: 'CREW' },
+  { id: 'st-cdmx', name: 'Chilango', text: 'CDMX' },
+];
+export const EMOTES = [
+  { id: 'em-orale', name: '¡Órale!', text: '¡ÓRALE!' },
+  { id: 'em-quionda', name: '¿Qué onda?', text: '¿QUÉ ONDA?' },
+  { id: 'em-ahi', name: 'Ahí nos vidrios', text: '¡AHÍ NOS VIDRIOS!' },
+  { id: 'em-chido', name: '¡Qué chido!', text: '¡QUÉ CHIDO!' },
+];
+
+function today() { return dayKey(new Date()); }
 
 function fresh() {
   return {
-    level: 1, xp: 0, coins: 100,
+    level: 1, xp: 0, coins: 100, // coins = Gotas
     owned: ['basica-blanca', 'basica-negra'],
-    equipped: { shirt: 'basica-blanca', species: 0 },
-    daily: { last: null, streak: 0 },
+    ownedCaps: ['clasica', 'inkcap-rotulo'],
+    stickers: [], emotes: [],
+    equipped: { shirt: 'basica-blanca', species: 0, cap: 'clasica', sticker: null, emote: null },
+    daily: { last: null, claimed: 0 },
+    calendar: { stamps: 0, months: 0 },
+    firstWinDay: null,
     stats: { matches: 0, wins: 0, kos: 0 },
     redeemed: [],
   };
@@ -63,7 +79,15 @@ let data = fresh();
 export function loadProgress() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) data = { ...fresh(), ...JSON.parse(raw) };
+    if (raw) {
+      const saved = JSON.parse(raw);
+      data = { ...fresh(), ...saved };
+      data.equipped = { ...fresh().equipped, ...(saved.equipped || {}) };
+      // migración desde v0.1 (racha estricta {last, streak})
+      if (saved.daily && saved.daily.claimed == null) data.daily = { last: saved.daily.last || null, claimed: saved.daily.streak || 0 };
+      if (!Array.isArray(data.ownedCaps)) data.ownedCaps = fresh().ownedCaps;
+      if (!data.calendar) data.calendar = { stamps: 0, months: 0 };
+    }
   } catch { data = fresh(); }
   return data;
 }
@@ -76,19 +100,25 @@ export function progress() { return data; }
 export function xpNeeded() { return PROGRESSION.xpForLevel(data.level); }
 
 function addXp(amount) {
+  let levels = 0;
+  if (data.level >= PROGRESSION.maxLevel) return { levels };
   data.xp += amount;
-  let levels = 0, coins = 0;
-  while (data.xp >= PROGRESSION.xpForLevel(data.level)) {
+  while (data.level < PROGRESSION.maxLevel && data.xp >= PROGRESSION.xpForLevel(data.level)) {
     data.xp -= PROGRESSION.xpForLevel(data.level);
     data.level++;
     levels++;
-    coins += PROGRESSION.coinsPerLevel;
   }
-  data.coins += coins;
-  return { levels, coins };
+  if (data.level >= PROGRESSION.maxLevel) data.xp = 0;
+  return { levels };
 }
 
-// Resultado de partida del jugador local → XP y monedas
+// Gotas por partida: 10–25 según el desempeño
+export function matchGotas({ won, kos, roundWins }) {
+  const G = PROGRESSION.gotas;
+  return Math.min(G.max, G.base + (won ? 8 : 0) + roundWins * 2 + kos);
+}
+
+// Resultado de partida del jugador local → XP y Gotas
 export function recordMatch({ won, kos, roundWins }) {
   const R = PROGRESSION.rewards;
   const breakdown = [
@@ -97,47 +127,90 @@ export function recordMatch({ won, kos, roundWins }) {
     { label: `Noqueos ×${kos}`, xp: kos * R.ko },
   ];
   if (won) breakdown.push({ label: '¡Ganaste la partida!', xp: R.matchWin });
+  let firstWin = false;
+  if (won && data.firstWinDay !== today()) {
+    firstWin = true;
+    data.firstWinDay = today();
+    breakdown.push({ label: 'Primera victoria del día', xp: R.firstWinOfDay });
+  }
   const total = breakdown.reduce((a, b) => a + b.xp, 0);
-  const matchCoins = 10 + (won ? 25 : 0) + kos * 2;
+  const gotas = matchGotas({ won, kos, roundWins });
   const before = { level: data.level, xp: data.xp };
-  data.coins += matchCoins;
+  data.coins += gotas;
   const lv = addXp(total);
   data.stats.matches++; if (won) data.stats.wins++; data.stats.kos += kos;
   save();
-  return { breakdown, total, coins: matchCoins + lv.coins, levelsGained: lv.levels, before };
+  return { breakdown, total, coins: gotas, levelsGained: lv.levels, before, firstWin };
 }
 
-// ── Premio diario ────────────────────────────────────────────
+// ── Premio diario (racha suave) ──────────────────────────────
+// Si faltas un día la racha se PAUSA: al volver sigues en el día que te tocaba.
 export function dailyStatus() {
-  const t = today();
-  const claimedToday = data.daily.last === t;
-  let streak = data.daily.streak;
-  if (!claimedToday && data.daily.last !== yesterday()) streak = 0; // se rompió la racha
-  const nextDay = claimedToday ? ((streak - 1) % 7) + 1 : (streak % 7) + 1;
-  return { claimedToday, streak, nextDay };
+  const claimedToday = data.daily.last === today();
+  const claimed = data.daily.claimed;
+  const nextDay = claimedToday ? ((claimed - 1) % 7) + 1 : (claimed % 7) + 1;
+  return { claimedToday, streak: claimed, nextDay, calendar: data.calendar.stamps };
 }
 
 export function claimDaily() {
   const st = dailyStatus();
   if (st.claimedToday) return null;
-  const streak = st.streak + 1;
-  const reward = PROGRESSION.daily[(streak - 1) % 7];
-  data.daily = { last: today(), streak };
-  let lv = { levels: 0, coins: 0 };
-  if (reward.coins) data.coins += reward.coins;
-  if (reward.xp) lv = addXp(reward.xp);
-  if (reward.shirt && !data.owned.includes(reward.shirt)) data.owned.push(reward.shirt);
+  const claimed = st.streak + 1;
+  const reward = PROGRESSION.daily[(claimed - 1) % 7];
+  const cycle = Math.floor((claimed - 1) / 7);
+  data.daily = { last: today(), claimed };
+  const got = [];
+  if (reward.coins) { data.coins += reward.coins; got.push(`${reward.coins} Gotas`); }
+  if (reward.sticker) {
+    const s = STICKERS.find((x) => !data.stickers.includes(x.id)) || STICKERS[cycle % STICKERS.length];
+    if (!data.stickers.includes(s.id)) data.stickers.push(s.id);
+    if (!data.equipped.sticker) data.equipped.sticker = s.id;
+    got.push(`Sticker "${s.name}"`);
+  }
+  if (reward.emote) {
+    const e = EMOTES.find((x) => !data.emotes.includes(x.id)) || EMOTES[cycle % EMOTES.length];
+    if (!data.emotes.includes(e.id)) data.emotes.push(e.id);
+    if (!data.equipped.emote) data.equipped.emote = e.id;
+    got.push(`Emote "${e.name}"`);
+  }
+  if (reward.weeklyCap) {
+    const id = weeklyCapId();
+    if (!data.ownedCaps.includes(id)) data.ownedCaps.push(id);
+    else data.coins += 100; // si ya la tenías, te damos Gotas
+    got.push(`Gorra de la semana "${CAP_DESIGNS[id].name}"`);
+  }
+  // calendario de 28 días → Playera del mes
+  data.calendar.stamps++;
+  let monthShirt = false;
+  if (data.calendar.stamps >= PROGRESSION.calendarDays) {
+    data.calendar.stamps = 0;
+    data.calendar.months++;
+    if (!data.owned.includes('playera-del-mes')) data.owned.push('playera-del-mes');
+    else data.coins += 300;
+    monthShirt = true;
+    got.push('¡Playera del mes!');
+  }
   save();
-  return { reward, streak, levelsGained: lv.levels };
+  return { reward, streak: claimed, got, monthShirt };
 }
 
 // ── Vestidor ─────────────────────────────────────────────────
 export function buyShirt(id) {
   const def = SHIRT_DESIGNS[id];
-  if (!def || data.owned.includes(id) || def.dailyOnly || def.codeOnly) return false;
+  if (!def || data.owned.includes(id) || def.dailyOnly || def.codeOnly || def.calendarOnly) return false;
   if (data.coins < def.price) return false;
   data.coins -= def.price;
   data.owned.push(id);
+  save();
+  return true;
+}
+
+export function buyCap(id) {
+  const def = CAP_DESIGNS[id];
+  if (!def || data.ownedCaps.includes(id) || def.dailyOnly) return false;
+  if (data.coins < def.price) return false;
+  data.coins -= def.price;
+  data.ownedCaps.push(id);
   save();
   return true;
 }
@@ -173,4 +246,51 @@ export function playerId() {
 export function resetProgress() {
   data = fresh();
   save();
+}
+
+// ── Reglas (interruptores) ───────────────────────────────────
+export function loadRules() {
+  try {
+    const raw = localStorage.getItem(RULES_KEY);
+    if (raw) return { ...DEFAULT_RULES, ...JSON.parse(raw) };
+  } catch { /* sin almacenamiento */ }
+  return { ...DEFAULT_RULES };
+}
+
+export function saveRules(rules) {
+  try { localStorage.setItem(RULES_KEY, JSON.stringify(rules)); } catch { /* sin almacenamiento */ }
+}
+
+// ── Reto del Día: mejor puntaje del día y tabla local de 7 días ──
+// Puntaje = KOs × 100 + rondas ganadas × 300 − segundos totales
+export function retoScore({ kos, roundWins, seconds }) {
+  return kos * 100 + roundWins * 300 - Math.round(seconds);
+}
+
+function loadReto() {
+  try { return JSON.parse(localStorage.getItem(RETO_KEY) || '{}') || {}; } catch { return {}; }
+}
+
+export function retoTable() {
+  const all = loadReto();
+  const rows = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    const seed = String(daySeed(d));
+    rows.push({ seed, label: i === 0 ? 'Hoy' : i === 1 ? 'Ayer' : `${d.getDate()}/${d.getMonth() + 1}`, best: all[seed] ?? null, today: i === 0 });
+  }
+  return rows;
+}
+
+export function recordReto(score) {
+  const all = loadReto();
+  const seed = String(daySeed());
+  const prev = all[seed];
+  const isBest = prev == null || score > prev;
+  if (isBest) all[seed] = score;
+  // solo se guardan los últimos 7 días
+  const keep = new Set(retoTable().map((r) => r.seed));
+  for (const k of Object.keys(all)) if (!keep.has(k)) delete all[k];
+  try { localStorage.setItem(RETO_KEY, JSON.stringify(all)); } catch { /* sin almacenamiento */ }
+  return { isBest, best: all[seed] ?? score, prev: prev ?? null };
 }

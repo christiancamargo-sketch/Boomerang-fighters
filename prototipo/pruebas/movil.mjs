@@ -16,8 +16,25 @@ page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 await page.goto(pathToFileURL(resolve('dist/index.html')).href);
 await page.waitForTimeout(1500);
 await page.screenshot({ path: `${OUT}/m1-menu.png` });
+// el menú cabe sin scroll horizontal y trae el sello de la marca
+const fit = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, w: innerWidth, seal: document.querySelector('#scr-menu .seal').innerText }));
+console.log('menú:', JSON.stringify(fit));
+if (fit.sw > fit.w || !/INKCAP/.test(fit.seal)) errors.push('menú no cabe o falta el sello');
+// vestidor con gorras en el celular
+await page.tap('text=VESTIDOR');
+await page.waitForTimeout(300);
+await page.tap('#w-tabs [data-tab="caps"]');
+await page.waitForTimeout(200);
+await page.screenshot({ path: `${OUT}/m1b-vestidor-gorras.png` });
+await page.tap('#scr-wardrobe >> text=Listo');
+await page.waitForTimeout(300);
 await page.tap('text=JUGAR');
 await page.waitForTimeout(300);
+await page.tap('#s-mode [data-v="retoDelDia"]');
+await page.waitForTimeout(200);
+await page.screenshot({ path: `${OUT}/m2b-setup-reto.png` });
+await page.tap('#s-mode [data-v="gorrazo"]');
+await page.waitForTimeout(200);
 await page.screenshot({ path: `${OUT}/m2-setup.png` });
 await page.tap('#btn-start');
 await page.waitForTimeout(3000);

@@ -126,9 +126,9 @@ namespace BoomerangFighters.Net
             foreach (var p in Lobby) if (p.PeerId >= 0) Transport.Send(p.PeerId, msg);
         }
 
-        public MatchConfig BuildConfig(string arenaId, int pointsToWin, uint seed)
+        public MatchConfig BuildConfig(string arenaId, int pointsToWin, uint seed, GameMode mode = GameMode.Gorrazo, Rules rules = null)
         {
-            var cfg = new MatchConfig { ArenaId = arenaId, PointsToWin = pointsToWin, Seed = seed };
+            var cfg = new MatchConfig { ArenaId = arenaId, PointsToWin = pointsToWin, Seed = seed, Mode = mode, Rules = rules?.Clone() ?? new Rules() };
             foreach (var p in Lobby) cfg.Slots.Add(new PlayerSlot { Name = p.Name, IsBot = p.IsBot, Difficulty = p.Difficulty, Species = p.Species, Shirt = p.Shirt });
             return cfg;
         }

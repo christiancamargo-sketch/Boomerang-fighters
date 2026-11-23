@@ -128,7 +128,7 @@ export const SHIRT_DESIGNS = {
     },
   },
   'tinta-derramada': {
-    name: 'Tinta Derramada', price: 0, rarity: 'Racha de 7 días', dailyOnly: true,
+    name: 'Tinta Derramada', price: 300, rarity: 'Rara',
     paint(ctx, W, H, r) {
       ctx.fillStyle = '#f4f1ea'; ctx.fillRect(0, 0, W, H);
       ctx.fillStyle = '#111';
@@ -260,6 +260,23 @@ export const SHIRT_DESIGNS = {
   },
 };
 
+// Premio del calendario de 28 días (spec E)
+SHIRT_DESIGNS['playera-del-mes'] = {
+  name: 'Playera del Mes', price: 0, rarity: 'Calendario de 28 días', calendarOnly: true,
+  paint(ctx, W, H, r) {
+    ctx.fillStyle = '#121016'; ctx.fillRect(0, 0, W, H);
+    const cols = ['#e69f00', '#56b4e9', '#f0e442', '#cc79a7', '#009e73'];
+    for (let i = 0; i < 28; i++) {
+      const x = 22 + (i % 7) * 32, y = 60 + Math.floor(i / 7) * 34;
+      ctx.fillStyle = cols[i % cols.length];
+      ctx.beginPath(); ctx.arc(x, y, 9 + r() * 4, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = '#f4f1ea';
+    ctx.font = `26px ${BLOCK_FONT}`; ctx.textAlign = 'center';
+    ctx.fillText('28 DÍAS', W / 2, 220);
+  },
+};
+
 const _shirtCache = new Map();
 export function shirtTexture(id) {
   if (_shirtCache.has(id)) return _shirtCache.get(id);
@@ -375,4 +392,173 @@ export function labelTexture(text, color) {
   ctx.strokeText(text, 128, 44);
   ctx.fillStyle = color; ctx.fillText(text, 128, 44);
   return toCanvasTexture(c);
+}
+
+// ── Gorras (diseños en la copa) ──────────────────────────────
+// Canvas 256×128 envuelto en la copa: x=64 es el frente (donde está la visera),
+// x=192 la nuca; y=0 es la punta y y=128 el borde. La silueta nunca cambia.
+const INK = '#121016', BONE = '#f4f1ea';
+function capFront(ctx, fn) { for (const cx of [64, 192]) { ctx.save(); ctx.translate(cx, 0); fn(ctx); ctx.restore(); } }
+
+export const CAP_DESIGNS = {
+  clasica: { name: 'Clásica', rarity: 'Común · de tu color', price: 0, playerColor: true },
+  'inkcap-rotulo': {
+    name: 'INKCAP Rótulo', rarity: 'Común', price: 0, visor: 0x121016,
+    paint(ctx, W, H) {
+      ctx.fillStyle = BONE; ctx.fillRect(0, 0, W, H);
+      capFront(ctx, (c) => {
+        c.fillStyle = INK; c.font = `22px ${BLOCK_FONT}`; c.textAlign = 'center';
+        c.fillText('INKCAP', 0, 96);
+      });
+    },
+  },
+  cuadros: {
+    name: 'Cuadros de Carrera', rarity: 'Común', price: 80, visor: 0x121016,
+    paint(ctx, W, H) {
+      for (let y = 0; y < H; y += 16) for (let x = 0; x < W; x += 16) {
+        ctx.fillStyle = ((x + y) / 16) % 2 === 0 ? INK : BONE; ctx.fillRect(x, y, 16, 16);
+      }
+    },
+  },
+  'gotas-tinta': {
+    name: 'Gotas de Tinta', rarity: 'Rara', price: 150, visor: 0x0072b2,
+    paint(ctx, W, H, r) {
+      ctx.fillStyle = '#56b4e9'; ctx.fillRect(0, 0, W, H);
+      drawDrips(ctx, 0, 0, W, INK, r, 50);
+      for (let i = 0; i < 8; i++) drawSplat(ctx, r() * W, 60 + r() * 50, 6 + r() * 6, INK, r);
+    },
+  },
+  flamas: {
+    name: 'Flamas', rarity: 'Rara', price: 200, visor: 0x121016,
+    paint(ctx, W, H) {
+      ctx.fillStyle = INK; ctx.fillRect(0, 0, W, H);
+      const cols = ['#d55e00', '#e69f00', '#f0e442'];
+      cols.forEach((col, k) => {
+        ctx.fillStyle = col;
+        ctx.beginPath(); ctx.moveTo(0, H);
+        for (let x = 0; x <= W; x += 16) ctx.lineTo(x, H - 30 - k * 14 - ((x / 16) % 2 ? 28 : 0) + k * 10);
+        ctx.lineTo(W, H); ctx.closePath(); ctx.fill();
+      });
+    },
+  },
+  camuflaje: {
+    name: 'Camuflaje', rarity: 'Común', price: 120, visor: 0x3f4238,
+    paint(ctx, W, H, r) {
+      ctx.fillStyle = '#6b705c'; ctx.fillRect(0, 0, W, H);
+      const cols = ['#a5a58d', '#3f4238', '#b7b7a4', '#283618'];
+      for (let i = 0; i < 26; i++) drawSplat(ctx, r() * W, r() * H, 8 + r() * 10, cols[i % cols.length], r);
+    },
+  },
+  estrellas: {
+    name: 'Estrellas', rarity: 'Épica', price: 250, visor: 0xcc79a7,
+    paint(ctx, W, H, r) {
+      ctx.fillStyle = '#2d1f3d'; ctx.fillRect(0, 0, W, H);
+      for (let i = 0; i < 16; i++) {
+        ctx.fillStyle = i % 3 ? '#f0e442' : BONE;
+        drawStar(ctx, r() * W, 20 + r() * 100, 6 + r() * 7); ctx.fill();
+      }
+    },
+  },
+};
+
+// Gorra de la semana (día 7 del premio diario): diseño de gorra INKCAP
+// con texto en tipografía de rótulo (no se inventa logo). Rota cada semana.
+const WEEKLY = [
+  { id: 'semana-tinta', name: 'INKCAP Tinta', visor: 0xf4f1ea, bg: INK, fg: BONE, accent: '#56b4e9' },
+  { id: 'semana-naranja', name: 'INKCAP Naranja', visor: 0x121016, bg: '#e69f00', fg: INK, accent: BONE },
+  { id: 'semana-verde', name: 'INKCAP Verde', visor: 0x121016, bg: '#009e73', fg: BONE, accent: INK },
+  { id: 'semana-rosa', name: 'INKCAP Rosa', visor: 0x121016, bg: '#cc79a7', fg: INK, accent: BONE },
+];
+for (const w of WEEKLY) {
+  CAP_DESIGNS[w.id] = {
+    name: w.name, rarity: 'Gorra de la semana · día 7', price: 0, dailyOnly: true, visor: w.visor,
+    paint(ctx, W, H) {
+      ctx.fillStyle = w.bg; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = w.accent; ctx.fillRect(0, 108, W, 8);
+      capFront(ctx, (c) => {
+        c.textAlign = 'center';
+        c.fillStyle = w.fg; c.font = `24px ${BLOCK_FONT}`; c.fillText('INKCAP', 0, 94);
+        c.font = `13px ${GRAFFITI_FONT}`; c.fillStyle = w.accent; c.fillText('gorra de la semana', 0, 60);
+      });
+    },
+  };
+}
+export function weeklyCapId(date = new Date()) {
+  // semana del año (lunes a domingo) → diseño
+  const d = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const jan1 = new Date(d.getFullYear(), 0, 1);
+  const week = Math.floor(((d - jan1) / 86400000 + ((jan1.getDay() + 6) % 7)) / 7);
+  return WEEKLY[week % WEEKLY.length].id;
+}
+
+const _capCache = new Map();
+function paintCap(id, w, h) {
+  const def = CAP_DESIGNS[id];
+  const c = makeCanvas(w, h);
+  const ctx = c.getContext('2d');
+  ctx.save(); ctx.scale(w / 256, h / 128);
+  def.paint(ctx, 256, 128, rng(id.length * 104729 + id.charCodeAt(0)));
+  ctx.restore();
+  return c;
+}
+export function capTexture(id) {
+  if (_capCache.has(id)) return _capCache.get(id);
+  const t = toCanvasTexture(paintCap(id, 256, 128));
+  _capCache.set(id, t);
+  return t;
+}
+
+// Miniatura de la gorra (silueta fija; el diseño solo en la copa)
+export function capThumb(id, playerCss = '#e69f00') {
+  const def = CAP_DESIGNS[id];
+  const c = makeCanvas(128, 128);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#2a2333'; ctx.fillRect(0, 0, 128, 128);
+  // copa
+  ctx.save();
+  ctx.beginPath(); ctx.ellipse(64, 78, 44, 40, 0, Math.PI, 0); ctx.closePath(); ctx.clip();
+  if (def.playerColor) { ctx.fillStyle = playerCss; ctx.fillRect(0, 0, 128, 128); }
+  else ctx.drawImage(paintCap(id, 256, 128), 0, 0, 128, 128, 20, 38, 88, 40); // mitad del frente
+  ctx.restore();
+  ctx.lineWidth = 4; ctx.strokeStyle = '#111';
+  ctx.beginPath(); ctx.ellipse(64, 78, 44, 40, 0, Math.PI, 0); ctx.closePath(); ctx.stroke();
+  // visera
+  const vis = def.playerColor ? playerCss : '#' + (def.visor ?? 0x222222).toString(16).padStart(6, '0');
+  ctx.fillStyle = vis;
+  ctx.beginPath(); ctx.ellipse(64, 82, 52, 12, 0, 0, Math.PI); ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(64, 38, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+  return c.toDataURL();
+}
+
+// Esténcil del Muro de Tag (Grafiti): letras caladas sobre el color del jugador
+const _stencilCache = new Map();
+export function stencilTexture(css) {
+  if (_stencilCache.has(css)) return _stencilCache.get(css);
+  const c = makeCanvas(256, 128);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = css; ctx.fillRect(0, 0, 256, 128);
+  ctx.fillStyle = 'rgba(18,16,22,0.85)';
+  ctx.font = `64px ${BLOCK_FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('TAG', 128, 66);
+  ctx.fillStyle = 'rgba(244,241,234,0.9)';
+  for (let x = 6; x < 256; x += 22) ctx.fillRect(x, 0, 8, 10);
+  for (let x = 6; x < 256; x += 22) ctx.fillRect(x, 118, 8, 10);
+  const t = toCanvasTexture(c);
+  _stencilCache.set(css, t);
+  return t;
+}
+
+// Franjas de precaución de los muros de muerte súbita
+let _hazardTex = null;
+export function hazardStripeTexture() {
+  if (_hazardTex) return _hazardTex;
+  const c = makeCanvas(128, 128);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#121016'; ctx.fillRect(0, 0, 128, 128);
+  ctx.fillStyle = '#f0e442';
+  for (let i = -128; i < 256; i += 32) {
+    ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i + 16, 0); ctx.lineTo(i + 16 + 128, 128); ctx.lineTo(i + 128, 128); ctx.fill();
+  }
+  _hazardTex = toCanvasTexture(c, { repeat: [1, 1] });
+  return _hazardTex;
 }

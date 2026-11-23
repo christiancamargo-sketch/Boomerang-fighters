@@ -9,7 +9,9 @@ import { toon } from './characters.js';
 import {
   rng, drawSplat, toCanvasTexture,
   graffitiWallTexture, museumWallTexture, rooftopWallTexture,
+  stencilTexture, hazardStripeTexture,
 } from './textures.js';
+import { TUNING } from './config.js';
 
 // Obstáculo: caja AABB en el plano XZ. h >= 1 bloquea gorras; h < 1 solo bloquea jugadores.
 const box = (x, z, w, d, h, kind) => ({ x, z, w, d, h, kind });
@@ -83,12 +85,18 @@ export class Arena {
     this.rand = rng(def.id.length * 131 + 7);
     this.obstacles = def.obstacles.map((o) => ({ ...o }));
     this.paintTimer = 0;
+    this.rng = null;      // el juego le pasa su Rng (decisiones de simulación)
+    this.inset = 0;       // muerte súbita: cuánto avanzó cada muro lateral (m)
+    this.tagWalls = [];   // muros de esténcil temporales (Grafiti · Muro de Tag)
     this._buildFloor();
     this._buildWalls();
     this._buildObstacles();
     this._buildHazards();
     this._buildDecor();
+    this._buildSuddenDeathWalls();
   }
+
+  _r() { return this.rng ? this.rng.next() : Math.random(); }
 
   dispose() {
     this.scene.remove(this.group);
@@ -338,7 +346,7 @@ export class Arena {
       else hz.state = 'off';
       if (prev === 'off' && hz.state === 'warn') {
         // elige nueva posición del láser
-        hz.z = (Math.random() - 0.5) * (this.h - 3);
+        hz.z = (this._r() - 0.5) * (this.h - 3);
         hz.group.position.z = hz.z;
         if (onWarn) onWarn(hz);
       }
@@ -407,10 +415,76 @@ export class Arena {
     for (const s of this.spinners) s.rotation.y += dt * 0.6;
   }
 
+  // ── Muerte súbita: muros laterales que avanzan ────────────
+  _buildSuddenDeathWalls() {
+    const H = this.h;
+    const tex = hazardStripeTexture().clone();
+    tex.needsUpdate = true;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(H / 2, 1);
+    const mat = toon(0xffffff, tex);
+    this.sdWalls = [-1, 1].map((side) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.6, 1.6, H), mat);
+      m.position.set(side * (this.w / 2 + 0.3), 0.8, 0);
+      m.visible = false;
+      m.userData.side = side;
+      this.group.add(m);
+      return m;
+    });
+  }
+
+  // warn: true durante el aviso (parpadean); inset: avance de cada muro en metros
+  setSuddenDeath(inset, warn = false, t = 0) {
+    this.inset = inset;
+    for (const m of this.sdWalls) {
+      m.position.x = m.userData.side * (this.w / 2 - inset + 0.3);
+      m.visible = inset > 0 || (warn && Math.sin(t * 25) > 0);
+    }
+  }
+
+  // ── Grafiti · Muro de Tag ──────────────────────────────────
+  // Muro de esténcil perpendicular a la dirección de vuelo, centrado en la gorra.
+  addTagWall(x, z, dirX, dirZ, css, src) {
+    const T = TUNING.tagWall;
+    const dl = Math.hypot(dirX, dirZ) || 1;
+    const nx = dirX / dl, nz = dirZ / dl;      // normal = dirección de vuelo
+    const tx = -nz, tz = nx;                   // eje largo del muro
+    const half = T.thick / 2;
+    const tw = {
+      ax: x - tx * T.len / 2, az: z - tz * T.len / 2,
+      bx: x + tx * T.len / 2, bz: z + tz * T.len / 2,
+      nx, nz, half, life: T.life, src,
+    };
+    const mat = toon(0xffffff, stencilTexture(css));
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(T.len, T.height, T.thick), mat);
+    mesh.position.set(x, T.height / 2, z);
+    mesh.rotation.y = -Math.atan2(tz, tx);
+    mesh.scale.y = 0.05;
+    this.group.add(mesh);
+    tw.mesh = mesh;
+    this.tagWalls.push(tw);
+    return tw;
+  }
+
+  updateTagWalls(dt) {
+    for (const tw of this.tagWalls) {
+      tw.life -= dt;
+      const age = TUNING.tagWall.life - tw.life;
+      tw.mesh.scale.y = Math.min(1, 0.05 + age * 8) * (tw.life < 0.25 ? Math.max(0.05, tw.life / 0.25) : 1);
+    }
+    for (const tw of this.tagWalls) if (tw.life <= 0) this.group.remove(tw.mesh);
+    this.tagWalls = this.tagWalls.filter((tw) => tw.life > 0);
+  }
+
+  clearTagWalls() {
+    for (const tw of this.tagWalls) this.group.remove(tw.mesh);
+    this.tagWalls = [];
+  }
+
   // ── Consultas de colisión ──────────────────────────────────
   // Empuja un círculo fuera de muros y obstáculos (solo los que bloquean jugadores)
   resolveCircle(p, r) {
-    const hw = this.w / 2 - r, hh = this.h / 2 - r;
+    const hw = this.w / 2 - this.inset - r, hh = this.h / 2 - r;
     let hit = false;
     if (p.x < -hw) { p.x = -hw; hit = true; }
     if (p.x > hw) { p.x = hw; hit = true; }
@@ -438,12 +512,23 @@ export class Arena {
         }
       }
     }
+    for (const tw of this.tagWalls) {
+      const c = closestOnSegment(p.x, p.z, tw);
+      const dx = p.x - c.x, dz = p.z - c.z;
+      const d = Math.hypot(dx, dz);
+      const min = r + tw.half;
+      if (d < min) {
+        hit = true;
+        const n = d > 1e-6 ? { x: dx / d, z: dz / d } : { x: tw.nx, z: tw.nz };
+        p.x = c.x + n.x * min; p.z = c.z + n.z * min;
+      }
+    }
     return hit;
   }
 
   // Colisión de proyectil (gorra). Devuelve la normal del choque o null.
-  capCollision(p, r) {
-    const hw = this.w / 2 - r, hh = this.h / 2 - r;
+  capCollision(p, r, cap = null) {
+    const hw = this.w / 2 - this.inset - r, hh = this.h / 2 - r;
     if (p.x < -hw) return { nx: 1, nz: 0, x: -hw, z: p.z };
     if (p.x > hw) return { nx: -1, nz: 0, x: hw, z: p.z };
     if (p.z < -hh) return { nx: 0, nz: 1, x: p.x, z: -hh };
@@ -461,6 +546,17 @@ export class Arena {
         return { nx, nz, x: cx + nx * r, z: cz + nz * r };
       }
     }
+    for (const tw of this.tagWalls) {
+      if (tw.src === cap) continue; // la gorra que lo pintó no choca con su propio muro
+      const c = closestOnSegment(p.x, p.z, tw);
+      const dx = p.x - c.x, dz = p.z - c.z;
+      const d = Math.hypot(dx, dz);
+      const min = r + tw.half;
+      if (d < min) {
+        const n = d > 1e-6 ? { x: dx / d, z: dz / d } : { x: tw.nx, z: tw.nz };
+        return { nx: n.x, nz: n.z, x: c.x + n.x * min, z: c.z + n.z * min, tagWall: true };
+      }
+    }
     return null;
   }
 
@@ -474,21 +570,32 @@ export class Arena {
   }
 
   isFree(x, z, r) {
-    if (Math.abs(x) > this.w / 2 - r || Math.abs(z) > this.h / 2 - r) return false;
+    if (Math.abs(x) > this.w / 2 - this.inset - r || Math.abs(z) > this.h / 2 - r) return false;
     for (const o of this.obstacles) {
       if (Math.abs(x - o.x) < o.w / 2 + r && Math.abs(z - o.z) < o.d / 2 + r) return false;
+    }
+    for (const tw of this.tagWalls) {
+      const c = closestOnSegment(x, z, tw);
+      if (Math.hypot(x - c.x, z - c.z) < r + tw.half) return false;
     }
     return true;
   }
 
   randomFreePoint(r = 0.8) {
     for (let i = 0; i < 60; i++) {
-      const x = (Math.random() - 0.5) * (this.w - 3);
-      const z = (Math.random() - 0.5) * (this.h - 3);
+      const x = (this._r() - 0.5) * (this.w - 3 - this.inset * 2);
+      const z = (this._r() - 0.5) * (this.h - 3);
       if (this.isFree(x, z, r)) return { x, z };
     }
     return { x: 0, z: 2 };
   }
+}
+
+function closestOnSegment(px, pz, s) {
+  const dx = s.bx - s.ax, dz = s.bz - s.az;
+  const l2 = dx * dx + dz * dz || 1;
+  const t = Math.max(0, Math.min(1, ((px - s.ax) * dx + (pz - s.az) * dz) / l2));
+  return { x: s.ax + dx * t, z: s.az + dz * t };
 }
 
 function segmentHitsBox(ax, az, bx, bz, o, pad) {

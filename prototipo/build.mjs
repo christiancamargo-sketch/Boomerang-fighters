@@ -4,7 +4,15 @@
 //   dist/index.html    → documento completo (para abrir local o subir a cualquier hosting)
 //   dist/artifact.html → mismo contenido sin <html>/<head>/<body> (para publicar como página)
 import { build } from 'esbuild';
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
+
+// Ranura del logo INKCAP (spec F): si existe src/marca/logo-inkcap.png se incrusta
+// como data URI; si no, se usa el texto "INKCAP" en tipografía de rótulo.
+// No se inventa un logo: el archivo lo pone la marca.
+const LOGO = 'src/marca/logo-inkcap.png';
+const inkcap = existsSync(LOGO)
+  ? `<img class="inkcap-logo" src="data:image/png;base64,${readFileSync(LOGO).toString('base64')}" alt="INKCAP">`
+  : '<b class="inkcap-word">INKCAP</b>';
 
 const result = await build({
   entryPoints: ['src/main.js'],
@@ -17,7 +25,7 @@ const result = await build({
 });
 let js = result.outputFiles[0].text.replace(/<\/script/gi, '<\\/script');
 
-const tpl = readFileSync('src/index.template.html', 'utf8');
+const tpl = readFileSync('src/index.template.html', 'utf8').replaceAll('<!--@inkcap-->', inkcap);
 const [, afterHead] = tpl.split('<!--@head-->');
 const [headPart, rest] = afterHead.split('<!--@body-->');
 const [bodyPart] = rest.split('<!--@script-->');
@@ -28,4 +36,4 @@ const fragment = `${headPart.trim()}\n${bodyPart.trim()}\n${script}\n`;
 writeFileSync('dist/artifact.html', fragment);
 const full = `<!doctype html>\n<html lang="es">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">\n${headPart.trim()}\n</head>\n<body>\n${bodyPart.trim()}\n${script}\n</body>\n</html>\n`;
 writeFileSync('dist/index.html', full);
-console.log(`OK: dist/index.html ${(full.length / 1024).toFixed(0)} KB`);
+console.log(`OK: dist/index.html ${(full.length / 1024).toFixed(0)} KB · logo INKCAP: ${existsSync(LOGO) ? 'imagen incrustada' : 'texto (no hay src/marca/logo-inkcap.png)'}`);

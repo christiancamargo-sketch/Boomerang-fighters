@@ -114,8 +114,22 @@ namespace BoomerangFighters.Core
     {
         public readonly ArenaDef Def;
         public readonly List<HazardState> Hazards = new List<HazardState>();
+        /// <summary>Muros de Tag (Grafiti) vivos: bloquean gorras y jugadores.</summary>
+        public readonly List<TagWall> TagWalls = new List<TagWall>();
+        /// <summary>Muerte súbita: cuánto avanzó hacia el centro cada muro de los lados cortos (eje X).</summary>
+        public float WallInset;
         public float HalfW => Def.Width * 0.5f;
         public float HalfD => Def.Depth * 0.5f;
+        /// <summary>Media anchura jugable (se encoge en muerte súbita).</summary>
+        public float PlayHalfW => HalfW - WallInset;
+
+        /// <summary>El obstáculo quedó del otro lado de un muro de muerte súbita (ya no cuenta).</summary>
+        bool BeyondWalls(in Box o)
+        {
+            if (WallInset <= 0f) return false;
+            float hw = PlayHalfW;
+            return o.x - o.w / 2f >= hw || o.x + o.w / 2f <= -hw;
+        }
 
         public Arena(ArenaDef def)
         {
@@ -162,14 +176,10 @@ namespace BoomerangFighters.Core
         /// <summary>Empuja un círculo fuera de muros y obstáculos. Devuelve true si chocó.</summary>
         public bool ResolveCircle(ref Vec2 p, float r)
         {
-            bool hit = false;
-            float hw = HalfW - r, hh = HalfD - r;
-            if (p.x < -hw) { p.x = -hw; hit = true; }
-            if (p.x > hw) { p.x = hw; hit = true; }
-            if (p.y < -hh) { p.y = -hh; hit = true; }
-            if (p.y > hh) { p.y = hh; hit = true; }
+            bool hit = ClampToWalls(ref p, r);
             foreach (var o in Def.Obstacles)
             {
+                if (BeyondWalls(o)) continue;
                 float cx = SimMath.Clamp(p.x, o.x - o.w / 2f, o.x + o.w / 2f);
                 float cz = SimMath.Clamp(p.y, o.y - o.d / 2f, o.y + o.d / 2f);
                 float dx = p.x - cx, dz = p.y - cz;
@@ -192,13 +202,65 @@ namespace BoomerangFighters.Core
                     else p.y = o.y + o.d / 2f + r;
                 }
             }
+            // muros de tag
+            foreach (var w in TagWalls)
+            {
+                if (!CircleVsWall(p, r, w, out var n, out var point)) continue;
+                hit = true;
+                p = point;
+            }
+            // los muros de muerte súbita mandan: empujan hacia adentro aunque haya algo detrás
+            if (WallInset > 0f) hit |= ClampToWalls(ref p, r);
             return hit;
         }
 
-        /// <summary>Choque de una gorra con muros u obstáculos altos.</summary>
-        public bool CapCollision(Vec2 p, float r, out WallHit hit)
+        bool ClampToWalls(ref Vec2 p, float r)
         {
-            float hw = HalfW - r, hh = HalfD - r;
+            bool hit = false;
+            float hw = PlayHalfW - r, hh = HalfD - r;
+            if (p.x < -hw) { p.x = -hw; hit = true; }
+            if (p.x > hw) { p.x = hw; hit = true; }
+            if (p.y < -hh) { p.y = -hh; hit = true; }
+            if (p.y > hh) { p.y = hh; hit = true; }
+            return hit;
+        }
+
+        /// <summary>Círculo contra muro de tag (rectángulo orientado). Devuelve la normal y el punto corregido.</summary>
+        public static bool CircleVsWall(Vec2 p, float r, TagWall w, out Vec2 normal, out Vec2 point)
+        {
+            var u = w.Dir; var nn = w.Dir.Perp;
+            var d = p - w.Pos;
+            float lx = Vec2.Dot(d, u), ly = Vec2.Dot(d, nn);
+            float cx = SimMath.Clamp(lx, -w.HalfLen, w.HalfLen), cy = SimMath.Clamp(ly, -w.HalfThick, w.HalfThick);
+            float dx = lx - cx, dy = ly - cy;
+            float d2 = dx * dx + dy * dy;
+            normal = Vec2.Zero; point = p;
+            if (d2 >= r * r) return false;
+            float nx, ny, px, py;
+            if (d2 > 1e-6f)
+            {
+                float dl = MathF.Sqrt(d2);
+                nx = dx / dl; ny = dy / dl;
+                px = cx + nx * r; py = cy + ny * r;
+            }
+            else
+            {
+                // el centro quedó dentro: salir por el lado más cercano
+                float ex = w.HalfLen - MathF.Abs(lx), ey = w.HalfThick - MathF.Abs(ly);
+                if (ey <= ex) { nx = 0f; ny = ly >= 0f ? 1f : -1f; px = lx; py = ny * (w.HalfThick + r); }
+                else { ny = 0f; nx = lx >= 0f ? 1f : -1f; py = ly; px = nx * (w.HalfLen + r); }
+            }
+            normal = u * nx + nn * ny;
+            point = w.Pos + u * px + nn * py;
+            return true;
+        }
+
+        /// <summary>Choque de una gorra con muros u obstáculos altos.</summary>
+        /// <param name="ignoreOwner">Los muros de tag de este jugador no detienen sus propias gorras (-1 = ninguno).</param>
+        /// <param name="from">De dónde venía la gorra: contra un muro de tag rebota del lado por el que llegó.</param>
+        public bool CapCollision(Vec2 p, float r, out WallHit hit, int ignoreOwner = -1, Vec2? from = null)
+        {
+            float hw = PlayHalfW - r, hh = HalfD - r;
             hit = default;
             if (p.x < -hw) { hit.Normal = new Vec2(1, 0); hit.Point = new Vec2(-hw, p.y); return true; }
             if (p.x > hw) { hit.Normal = new Vec2(-1, 0); hit.Point = new Vec2(hw, p.y); return true; }
@@ -206,7 +268,7 @@ namespace BoomerangFighters.Core
             if (p.y > hh) { hit.Normal = new Vec2(0, -1); hit.Point = new Vec2(p.x, hh); return true; }
             foreach (var o in Def.Obstacles)
             {
-                if (!o.BlocksCaps) continue;
+                if (!o.BlocksCaps || BeyondWalls(o)) continue;
                 float cx = SimMath.Clamp(p.x, o.x - o.w / 2f, o.x + o.w / 2f);
                 float cz = SimMath.Clamp(p.y, o.y - o.d / 2f, o.y + o.d / 2f);
                 float dx = p.x - cx, dz = p.y - cz;
@@ -219,29 +281,60 @@ namespace BoomerangFighters.Core
                 hit.Point = new Vec2(cx + n.x * r, cz + n.y * r);
                 return true;
             }
+            foreach (var w in TagWalls)
+            {
+                if (w.OwnerId == ignoreOwner) continue;
+                if (!CircleVsWall(p, r, w, out var n, out var point)) continue;
+                if (from.HasValue)
+                {
+                    // el muro es delgado: decidir la cara por el lado de llegada (que no lo atraviese)
+                    var nn = w.Dir.Perp;
+                    float lx = Vec2.Dot(p - w.Pos, w.Dir);
+                    if (MathF.Abs(lx) <= w.HalfLen)
+                    {
+                        float side = Vec2.Dot(from.Value - w.Pos, nn) >= 0f ? 1f : -1f;
+                        n = nn * side;
+                        point = w.Pos + w.Dir * lx + nn * (side * (w.HalfThick + r));
+                    }
+                }
+                hit.Normal = n;
+                hit.Point = point;
+                return true;
+            }
             return false;
         }
 
         public bool LineOfSight(Vec2 a, Vec2 b)
         {
             foreach (var o in Def.Obstacles)
-                if (o.BlocksCaps && SegmentHitsBox(a, b, o, 0.25f)) return false;
+                if (o.BlocksCaps && !BeyondWalls(o) && SegmentHitsBox(a, b, o, 0.25f)) return false;
+            foreach (var w in TagWalls)
+            {
+                // pasar el segmento a coordenadas del muro y usar la misma prueba de caja
+                var u = w.Dir; var nn = w.Dir.Perp;
+                var la = new Vec2(Vec2.Dot(a - w.Pos, u), Vec2.Dot(a - w.Pos, nn));
+                var lb = new Vec2(Vec2.Dot(b - w.Pos, u), Vec2.Dot(b - w.Pos, nn));
+                if (SegmentHitsBox(la, lb, new Box(0f, 0f, w.HalfLen * 2f, w.HalfThick * 2f, 1f, "tag"), 0.1f)) return false;
+            }
             return true;
         }
 
         public bool IsFree(Vec2 p, float r)
         {
-            if (MathF.Abs(p.x) > HalfW - r || MathF.Abs(p.y) > HalfD - r) return false;
+            if (MathF.Abs(p.x) > PlayHalfW - r || MathF.Abs(p.y) > HalfD - r) return false;
             foreach (var o in Def.Obstacles)
-                if (MathF.Abs(p.x - o.x) < o.w / 2f + r && MathF.Abs(p.y - o.y) < o.d / 2f + r) return false;
+                if (!BeyondWalls(o) && MathF.Abs(p.x - o.x) < o.w / 2f + r && MathF.Abs(p.y - o.y) < o.d / 2f + r) return false;
+            foreach (var w in TagWalls)
+                if (CircleVsWall(p, r, w, out _, out _)) return false;
             return true;
         }
 
         public Vec2 RandomFreePoint(ref Rng rng, float r)
         {
+            float usableW = MathF.Max(1f, PlayHalfW * 2f - 3f);
             for (int i = 0; i < 60; i++)
             {
-                var p = new Vec2((rng.NextFloat() - 0.5f) * (Def.Width - 3f), (rng.NextFloat() - 0.5f) * (Def.Depth - 3f));
+                var p = new Vec2((rng.NextFloat() - 0.5f) * usableW, (rng.NextFloat() - 0.5f) * (Def.Depth - 3f));
                 if (IsFree(p, r)) return p;
             }
             return new Vec2(0f, 2f);

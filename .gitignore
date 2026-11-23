@@ -12,6 +12,7 @@ prototipo/pruebas/capturas/
 [Uu]ser[Ss]ettings/
 *.csproj
 *.sln
-# .NET (pruebas fuera de Unity)
+# .NET (pruebas fuera de Unity): sus .csproj SÍ se suben (sin ellos no corre `dotnet test`)
+!unity/Tests~/**/*.csproj
 unity/Tests~/**/bin/
 unity/Tests~/**/obj/

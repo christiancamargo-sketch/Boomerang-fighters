@@ -1,0 +1,15 @@
+<!-- Compila Core + Net con el mismo perfil que Unity 6 (.NET Standard 2.1, C# 9).
+     Si esto compila, Unity no se va a quejar de APIs de .NET que no tiene. -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Assets/BoomerangFighters/Scripts/Core/**/*.cs" />
+    <Compile Include="../../Assets/BoomerangFighters/Scripts/Net/**/*.cs" />
+  </ItemGroup>
+</Project>

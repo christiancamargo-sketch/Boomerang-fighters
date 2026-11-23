@@ -1,11 +1,13 @@
 // ─────────────────────────────────────────────────────────────
-// HUD y MENÚ DE PRUEBA (IMGUI / OnGUI: cero configuración).
-// Sirve para probar en el editor y en celulares:
-//   Jugar vs bots · Crear sala LAN · Buscar salas · Unirse por IP
+// HUD EN JUEGO (IMGUI / OnGUI: cero configuración).
+// Marcador, reloj de ronda y muerte súbita, lata caliente, fila de
+// La Reta, letreros de KO de la spec A8 (¡GORRAZO!, ¡DE REGRESO!,
+// ¡DE BANDA!, ¡TE LA REGRESO!, ¡ZAZ!, ¡ZAP!, ¡SPLASH!, ¡TIRAJE!) y
+// ¡EMPATE!, emote local y controles táctiles.
+// Los menús, el vestidor y los resultados viven en GameMenu.
 // La UI final (con el arte de la marca) se hará con UI Toolkit o uGUI.
 // ─────────────────────────────────────────────────────────────
 using BoomerangFighters.Core;
-using BoomerangFighters.Net;
 using UnityEngine;
 
 namespace BoomerangFighters.UnityView
@@ -14,10 +16,12 @@ namespace BoomerangFighters.UnityView
     public sealed class DebugHud : MonoBehaviour
     {
         MatchRunner _r;
-        string _ip = "192.168.1.";
-        string _banner = "";
-        float _bannerT;
-        GUIStyle _big, _mid, _btn;
+        GameMenu _menu;
+        string _banner = "", _bannerSub = "";
+        Color _bannerColor = Color.white;
+        float _bannerT, _emoteT;
+        string _emoteText = "";
+        int _bannerPriority;
 
         void Awake()
         {
@@ -25,18 +29,19 @@ namespace BoomerangFighters.UnityView
             _r.SimEvents += OnSimEvents;
         }
 
+        void Start() => _menu = GetComponent<GameMenu>();
+
         void OnDestroy() { if (_r != null) _r.SimEvents -= OnSimEvents; }
 
-        void Styles()
+        void Update()
         {
-            if (_big != null) return;
-            float u = Mathf.Min(Screen.width, Screen.height) / 360f;
-            _big = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(42 * u), alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
-            _mid = new GUIStyle(GUI.skin.label) { fontSize = Mathf.RoundToInt(13 * u), wordWrap = true };
-            _btn = new GUIStyle(GUI.skin.button) { fontSize = Mathf.RoundToInt(15 * u), fixedHeight = 34 * u };
+            _bannerT -= Time.unscaledDeltaTime;
+            _emoteT -= Time.unscaledDeltaTime;
+            if (_bannerT <= 0f) _bannerPriority = 0;
         }
 
-        void Update() => _bannerT -= Time.deltaTime;
+        string NameOf(int id) => _r.Sim != null && id >= 0 && id < _r.Sim.Players.Count ? _r.Sim.Players[id].Name : "?";
+        Color ColorOf(int id) => id >= 0 ? Greybox.PlayerColor(id) : Color.white;
 
         void OnSimEvents(System.Collections.Generic.IReadOnlyList<SimEvent> events)
         {
@@ -44,97 +49,159 @@ namespace BoomerangFighters.UnityView
             if (sim == null) return;
             foreach (var e in events)
             {
-                if (e.Type == SimEventType.Countdown) Banner(e.Extra > 0 ? e.Extra.ToString() : "¡YA!", 0.7f);
-                if (e.Type == SimEventType.RoundEnd) Banner(e.A >= 0 ? $"PUNTO PARA {sim.Players[e.A].Name}" : "EMPATE", 1.2f);
-                if (e.Type == SimEventType.MatchEnd) Banner($"¡GANÓ {sim.Players[e.A].Name}!", 5f);
-                if (e.Type == SimEventType.PickupTaken && e.A == _r.LocalPlayerIndex) Banner($"{PowerUpInfo.Name((PowerUp)e.Extra)} · {PowerUpInfo.Effect((PowerUp)e.Extra)}", 1.2f);
+                switch (e.Type)
+                {
+                    case SimEventType.Countdown:
+                        Banner(e.Extra > 0 ? e.Extra.ToString() : "¡YA!", "", Color.white, 0.7f, 1);
+                        break;
+                    case SimEventType.KO:
+                    {
+                        var cause = (KoCause)e.Extra;
+                        string sub = e.B >= 0 && e.B != e.A ? $"{NameOf(e.B)} noqueó a {NameOf(e.A)}" : $"{NameOf(e.A)} quedó fuera";
+                        Banner(KoCauseInfo.Label(cause), sub, e.B >= 0 ? ColorOf(e.B) : Greybox.Hex(Greybox.Magenta), 1.0f, 3);
+                        break;
+                    }
+                    case SimEventType.RoundEnd:
+                    {
+                        var reason = (RoundEndReason)e.Extra;
+                        if (e.A >= 0) Banner($"PUNTO PARA {NameOf(e.A)}", "", ColorOf(e.A), 1.3f, 4);
+                        else Banner(KoCauseInfo.TieLabel, reason == RoundEndReason.TimeUp ? "Se acabó el tiempo: nadie suma" : "Doble KO: nadie suma", UiSkin.Gold, 1.6f, 4);
+                        break;
+                    }
+                    case SimEventType.MatchEnd:
+                        Banner(e.A >= 0 ? $"¡GANÓ {NameOf(e.A)}!" : "FIN", "", ColorOf(e.A), 2.5f, 5);
+                        break;
+                    case SimEventType.SuddenDeathWarn:
+                        Banner("¡MUERTE SÚBITA!", sim.Mode == GameMode.LataCaliente ? "Los muros se cierran" : "Los muros se cierran · a los 45 s es empate", Greybox.Hex(Greybox.Magenta), 1.4f, 2);
+                        break;
+                    case SimEventType.HotCanPass:
+                        Banner(e.B >= 0 ? $"¡LATA PARA {NameOf(e.A)}!" : $"LA LATA LA TRAE {NameOf(e.A)}", "", Greybox.Hex(0xD55E00), 0.9f, 2);
+                        break;
+                    case SimEventType.HotCanExplode:
+                        Banner("¡SPLASH!", $"Le explotó la lata a {NameOf(e.A)}", Greybox.Hex(0xD55E00), 1.1f, 3);
+                        break;
+                    case SimEventType.RetaNext:
+                        Banner($"¡ENTRA {NameOf(e.A)}!", $"{NameOf(e.B)} se va a la fila", ColorOf(e.A), 1.4f, 2);
+                        break;
+                    case SimEventType.PickupTaken:
+                        if (e.A == _r.LocalPlayerIndex) Banner(PowerUpInfo.Name((PowerUp)e.Extra), PowerUpInfo.Effect((PowerUp)e.Extra), Greybox.Hex(PowerUpInfo.Color((PowerUp)e.Extra)), 1.2f, 1);
+                        break;
+                    case SimEventType.Marked:
+                        if (e.A == _r.LocalPlayerIndex) Banner("¡TE MARCARON!", "Una gorra con Tatuaje te persigue", Greybox.Hex(Greybox.Magenta), 0.9f, 1);
+                        break;
+                }
             }
         }
 
-        void Banner(string text, float seconds) { _banner = text; _bannerT = seconds; }
+        // Un letrero más importante no lo tapa uno menos importante mientras se ve.
+        void Banner(string text, string sub, Color color, float seconds, int priority)
+        {
+            if (_bannerT > 0f && priority < _bannerPriority) return;
+            _banner = text; _bannerSub = sub; _bannerColor = color; _bannerT = seconds; _bannerPriority = priority;
+        }
 
         void OnGUI()
         {
-            Styles();
-            float u = Mathf.Min(Screen.width, Screen.height) / 360f;
-            if (_r.Mode == RunMode.Menu || (_r.Mode == RunMode.Host && _r.Sim == null) || (_r.Mode == RunMode.Client && _r.Sim == null))
-            {
-                DrawMenu(u);
-                return;
-            }
             var sim = _r.Sim;
-            if (sim == null) return;
+            if (sim == null || (_menu != null && _menu.Visible)) return;
+            UiSkin.Ensure();
+            float u = UiSkin.U;
+            GUI.depth = 10;
 
-            // marcador
-            GUILayout.BeginArea(new Rect(8 * u, 8 * u, Screen.width - 16 * u, 40 * u));
-            GUILayout.BeginHorizontal();
-            foreach (var p in sim.Players)
+            DrawScoreboard(sim, u);
+            DrawClock(sim, u);
+            if (sim.Mode == GameMode.LaReta) DrawRetaQueue(sim, u);
+
+            if (_bannerT > 0f)
             {
-                var c = Greybox.Hex(Greybox.PlayerColors[p.Id % Greybox.PlayerColors.Length]);
-                GUI.color = p.Alive ? c : c * 0.5f;
-                GUILayout.Label($"{p.Name}  {new string('●', p.Score)}{new string('○', Mathf.Max(0, sim.Config.PointsToWin - p.Score))}", _mid, GUILayout.Width(110 * u));
+                var r = new Rect(0, Screen.height * 0.26f, Screen.width, 70 * u);
+                UiSkin.Outlined(r, _banner, UiSkin.Banner, _bannerColor);
+                if (!string.IsNullOrEmpty(_bannerSub)) UiSkin.Outlined(new Rect(0, r.yMax, Screen.width, 26 * u), _bannerSub, UiSkin.BannerSub, Color.white);
             }
-            GUI.color = Color.white;
-            GUILayout.FlexibleSpace();
-            if (GUILayout.Button("Salir", _btn, GUILayout.Width(70 * u))) _r.StopAll();
-            GUILayout.EndHorizontal();
-            GUILayout.EndArea();
 
-            if (_bannerT > 0f) GUI.Label(new Rect(0, Screen.height * 0.3f, Screen.width, 80 * u), _banner, _big);
-            if (sim.Phase == MatchPhase.MatchEnd && GUI.Button(new Rect(Screen.width / 2f - 80 * u, Screen.height * 0.62f, 160 * u, 34 * u), "Revancha", _btn))
+            if (_emoteT > 0f && !string.IsNullOrEmpty(_emoteText) && _r.Cam != null)
             {
-                if (_r.Mode == RunMode.Offline) _r.StartOffline(_r.LocalInputs.Count);
-                else if (_r.Mode == RunMode.Host) _r.StartHostedMatch();
+                var head = _r.World.PlayerHead(_r.LocalPlayerIndex) + Vector3.up * 0.6f;
+                var sp = _r.Cam.WorldToScreenPoint(head);
+                if (sp.z > 0f) UiSkin.Outlined(new Rect(sp.x - 120 * u, Screen.height - sp.y - 20 * u, 240 * u, 30 * u), _emoteText, UiSkin.BannerSub, UiSkin.Gold);
             }
 
             foreach (var input in _r.LocalInputs) if (input.Preset == InputDevicePreset.Touch) DrawTouch(input, u);
         }
 
-        void DrawMenu(float u)
+        void DrawScoreboard(MatchSimulation sim, float u)
         {
-            GUILayout.BeginArea(new Rect(16 * u, 16 * u, Mathf.Min(340 * u, Screen.width - 32 * u), Screen.height - 32 * u), GUI.skin.box);
-            GUILayout.Label("BOOMERANG FIGHTERS · greybox", _mid);
-            GUILayout.Label("Nombre:", _mid);
-            _r.PlayerName = GUILayout.TextField(_r.PlayerName, 16);
+            GUILayout.BeginArea(new Rect(8 * u, 8 * u, Screen.width - 16 * u, 44 * u));
+            GUILayout.BeginHorizontal();
+            foreach (var p in sim.Players)
+            {
+                var c = ColorOf(p.Id);
+                GUI.color = p.Alive ? c : c * 0.55f;
+                string pts;
+                if (sim.Mode == GameMode.LaReta) pts = $"{p.Score} vict.{(p.Streak > 0 ? $" · racha {p.Streak}" : "")}";
+                else pts = $"{new string('●', Mathf.Min(p.Score, 9))}{new string('○', Mathf.Max(0, sim.Config.PointsToWin - p.Score))}";
+                string tag = p.Benched ? " (fila)" : p.Id == _r.LocalPlayerIndex && !p.IsBot ? " (tú)" : "";
+                GUILayout.Label($"<b>{p.Name}</b>{tag}\n{pts}", UiSkin.Small, GUILayout.Width(Mathf.Min(110 * u, (Screen.width - 170 * u) / Mathf.Max(1, sim.Players.Count))));
+            }
+            GUI.color = Color.white;
+            GUILayout.FlexibleSpace();
+            var eq = ProgressStore.Data.Equipped;
+            if (!string.IsNullOrEmpty(eq.Emote) && GUILayout.Button("Emote", UiSkin.ButtonGhost, GUILayout.Width(70 * u)))
+            {
+                foreach (var em in ProgressRules.EmoteList) if (em.Id == eq.Emote) _emoteText = em.Text;
+                _emoteT = 1.6f;
+            }
+            if (GUILayout.Button("Salir", UiSkin.Button, GUILayout.Width(70 * u))) _r.StopAll();
+            GUILayout.EndHorizontal();
+            GUILayout.EndArea();
+        }
 
-            if (_r.Mode == RunMode.Menu)
+        void DrawClock(MatchSimulation sim, float u)
+        {
+            if (sim.Phase != MatchPhase.Play && sim.Phase != MatchPhase.RoundEnd) return;
+            float t = sim.RoundTime;
+            string clock = $"{(int)(t / 60f)}:{(int)(t % 60f):00}";
+            var top = new Rect(0, 52 * u, Screen.width, 26 * u);
+            var R = sim.T.Round;
+            if (sim.SuddenDeath == SuddenDeathStage.Closing)
             {
-                GUILayout.BeginHorizontal();
-                if (GUILayout.Button("Callejón", _btn)) _r.ArenaId = "callejon";
-                if (GUILayout.Button("Museo", _btn)) _r.ArenaId = "museo";
-                if (GUILayout.Button("Azotea", _btn)) _r.ArenaId = "azotea";
-                GUILayout.EndHorizontal();
-                GUILayout.Label($"Escenario: {ArenaLibrary.Get(_r.ArenaId).Name} · Bots: {_r.Bots} ({_r.Difficulty})", _mid);
-                if (GUILayout.Button("Jugar vs bots", _btn)) _r.StartOffline(1);
-                if (GUILayout.Button("2 jugadores aquí + bots", _btn)) _r.StartOffline(2);
-                GUILayout.Space(8 * u);
-                GUILayout.Label("Multijugador por Wi‑Fi (misma red o hotspot):", _mid);
-                if (GUILayout.Button("Crear sala", _btn)) _r.HostLan();
-                if (GUILayout.Button("Buscar salas", _btn)) _r.BrowseLan();
-                foreach (var room in _r.Rooms)
-                    if (GUILayout.Button($"Unirse: {room}", _btn)) _r.JoinLan(room.HostIp, room.Port);
-                GUILayout.BeginHorizontal();
-                _ip = GUILayout.TextField(_ip, 21);
-                if (GUILayout.Button("Unirse por IP", _btn, GUILayout.Width(130 * u)))
+                string tie = sim.Mode != GameMode.LataCaliente ? $" · empate en {Mathf.Max(0, Mathf.CeilToInt(R.SuddenDeathTieAt - t))} s" : "";
+                UiSkin.Outlined(top, $"MUERTE SÚBITA{tie}", UiSkin.BannerSub, Greybox.Hex(Greybox.Magenta));
+            }
+            else
+            {
+                string warn = sim.Rules.SuddenDeath && t > R.SuddenDeathAt - 5f && t < R.SuddenDeathAt + R.SuddenDeathWarn ? "  ¡se cierran los muros!" : "";
+                UiSkin.Outlined(top, clock + warn, UiSkin.BannerSub, Color.white);
+            }
+            if (sim.Mode == GameMode.LataCaliente && sim.HotCanHolder >= 0)
+            {
+                var rr = new Rect(0, top.yMax, Screen.width, 26 * u);
+                UiSkin.Outlined(rr, $"LATA CALIENTE: {NameOf(sim.HotCanHolder)} · {sim.HotCanTimer:0.0} s", UiSkin.BannerSub, Greybox.Hex(0xFF8F70));
+            }
+        }
+
+        void DrawRetaQueue(MatchSimulation sim, float u)
+        {
+            float w = 150 * u;
+            GUILayout.BeginArea(new Rect(Screen.width - w - 8 * u, 104 * u, w, Screen.height * 0.5f), UiSkin.Card);
+            GUILayout.Label("<b>EN LA RETA</b>", UiSkin.Small);
+            for (int k = 0; k < 2; k++)
+            {
+                int id = sim.RetaFighters[k];
+                if (id < 0) continue;
+                var p = sim.Players[id];
+                GUILayout.Label($"<color=#{UiSkin.ColorTag(ColorOf(id))}><b>{p.Name}</b></color>  {p.Score} vict.{(p.Streak > 0 ? $" · racha {p.Streak}/3" : "")}", UiSkin.Small);
+            }
+            if (sim.RetaQueue.Count > 0)
+            {
+                GUILayout.Label("<b>FILA</b>", UiSkin.Small);
+                for (int i = 0; i < sim.RetaQueue.Count; i++)
                 {
-                    if (RoomInfo.TryParseJoinUri(_ip, out var qip, out var qport)) _r.JoinLan(qip, qport); // texto de un QR
-                    else _r.JoinLan(_ip.Trim(), _r.GamePort);
+                    int id = sim.RetaQueue[i];
+                    GUILayout.Label($"{i + 1}. <color=#{UiSkin.ColorTag(ColorOf(id))}>{NameOf(id)}</color>", UiSkin.Small);
                 }
-                GUILayout.EndHorizontal();
             }
-            else if (_r.Mode == RunMode.Host)
-            {
-                GUILayout.Label($"Sala \"{_r.RoomName}\" — comparte tu IP: {MatchRunner.LocalIp()}", _mid);
-                foreach (var p in _r.Host.Lobby) GUILayout.Label($"• {p.Name}{(p.IsBot ? " (bot)" : p.PeerId < 0 ? " (tú)" : "")}", _mid);
-                if (GUILayout.Button("¡Empezar partida!", _btn)) _r.StartHostedMatch();
-                if (GUILayout.Button("Cerrar sala", _btn)) _r.StopAll();
-            }
-            else if (_r.Mode == RunMode.Client)
-            {
-                foreach (var n in _r.Client.LobbyNames) GUILayout.Label($"• {n}", _mid);
-                if (GUILayout.Button("Salir", _btn)) _r.StopAll();
-            }
-            GUILayout.Label(_r.Status, _mid);
+            GUILayout.Label($"Ronda {sim.Round}/{sim.T.Modes.RetaMaxRounds}", UiSkin.Small);
             GUILayout.EndArea();
         }
 
@@ -142,9 +209,9 @@ namespace BoomerangFighters.UnityView
 
         void DrawTouch(LocalInputReader t, float u)
         {
-            GUI.color = new Color(1f, 0.42f, 0.17f, 0.85f); GUI.Box(ToGui(t.ThrowRect), "LANZAR", _btn);
-            GUI.color = new Color(0.91f, 0.26f, 0.58f, 0.85f); GUI.Box(ToGui(t.MeleeRect), "GOLPE", _btn);
-            GUI.color = new Color(0.13f, 0.78f, 0.91f, 0.85f); GUI.Box(ToGui(t.DashRect), "DASH", _btn);
+            GUI.color = new Color(1f, 0.42f, 0.17f, 0.85f); GUI.Box(ToGui(t.ThrowRect), "LANZAR", UiSkin.Button);
+            GUI.color = new Color(0.91f, 0.26f, 0.58f, 0.85f); GUI.Box(ToGui(t.MeleeRect), "GOLPE", UiSkin.Button);
+            GUI.color = new Color(0.13f, 0.78f, 0.91f, 0.85f); GUI.Box(ToGui(t.DashRect), "DASH", UiSkin.Button);
             GUI.color = new Color(1f, 1f, 1f, 0.5f);
             if (t.StickTouchId >= 0)
             {

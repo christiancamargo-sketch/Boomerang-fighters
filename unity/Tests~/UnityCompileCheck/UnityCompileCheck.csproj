@@ -1,0 +1,21 @@
+<!-- OPCIONAL: revisa que los scripts de la carpeta Unity compilen contra las
+     referencias de UnityEngine (paquete NuGet "UnityEngine.Modules", 2021.3) y
+     contra stubs mínimos del Input System. No sustituye abrir el proyecto en
+     Unity 6, pero atrapa errores de escritura sin tener el editor. -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <NoWarn>CS0618</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Assets/BoomerangFighters/Scripts/**/*.cs" Exclude="../../Assets/BoomerangFighters/Scripts/Editor/**/*.cs" />
+    <!-- Scripts/Editor usa UnityEditor (no está en el paquete NuGet): se revisa a mano / en Unity -->
+    <Compile Include="InputSystemStubs.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="UnityEngine.Modules" Version="2021.3.33" />
+  </ItemGroup>
+</Project>

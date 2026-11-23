@@ -106,6 +106,45 @@ namespace BoomerangFighters.Tests
         }
 
         [Fact]
+        public void LaConfigViajaConModoYReglas()
+        {
+            Assert.Equal(2, Protocol.Version);
+            var cfg = new MatchConfig
+            {
+                ArenaId = "azotea", PointsToWin = 7, Seed = 20261123u, Mode = GameMode.LaReta,
+                Rules = new Rules { SuddenDeath = true, Shove = false, DeflectReturn = true, GraffitiWall = false, PowerUps = false },
+            };
+            for (int i = 0; i < 5; i++) cfg.Slots.Add(new PlayerSlot { Name = $"J{i}", IsBot = i > 2, Difficulty = BotDifficulty.Dificil, Species = i });
+            var bytes = Wire.Build(MsgType.StartMatch, w => Wire.WriteConfig(w, cfg));
+            var r = new System.IO.BinaryReader(new System.IO.MemoryStream(bytes));
+            Assert.Equal((byte)MsgType.StartMatch, r.ReadByte());
+            var back = Wire.ReadConfig(r);
+            Assert.Equal(GameMode.LaReta, back.Mode);
+            Assert.Equal(cfg.Rules.ToBits(), back.Rules.ToBits());
+            Assert.False(back.Rules.Shove); Assert.False(back.Rules.GraffitiWall); Assert.False(back.Rules.PowerUps);
+            Assert.True(back.Rules.SuddenDeath); Assert.True(back.Rules.DeflectReturn);
+            Assert.Equal("azotea", back.ArenaId); Assert.Equal(7, back.PointsToWin); Assert.Equal(20261123u, back.Seed);
+            Assert.Equal(5, back.Slots.Count);
+        }
+
+        [Fact]
+        public void ElClienteRecibeElModoYJuegaLataCaliente()
+        {
+            var (ht, ct) = LoopbackTransport.Pair(latency: 0.03f);
+            var host = new HostSession(ht, "Anfitrión");
+            var client = new ClientSession(ct, "Invitado");
+            Pump(host, client, ht, ct, 20);
+            host.AddBot("Bot", BotDifficulty.Normal);
+            host.StartMatch(host.BuildConfig("callejon", 3, 31, GameMode.LataCaliente, new Rules { DeflectReturn = false }));
+            Pump(host, client, ht, ct, 260); // pasa la cuenta regresiva: ya hay lata
+            Assert.NotNull(client.Sim);
+            Assert.Equal(GameMode.LataCaliente, client.Sim.Mode);
+            Assert.False(client.Sim.Rules.DeflectReturn);
+            Assert.True(host.Sim.HotCanHolder >= 0);
+            Assert.Equal(host.Sim.HotCanHolder, client.Sim.HotCanHolder);
+        }
+
+        [Fact]
         public void ElAnuncioLanSeVeEnLaLista()
         {
             int beaconPort = 47000 + (System.Environment.ProcessId % 900);

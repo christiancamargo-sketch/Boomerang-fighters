@@ -1,19 +1,21 @@
 // ─────────────────────────────────────────────────────────────
 // NÚCLEO DEL JUEGO
 // Rondas de "último en pie", gorras que van y regresan, golpe,
-// dash, power-ups de tinta, peligros, bots y "game feel"
-// (hit stop, cámara lenta, temblor, partículas, manchas).
-// La lógica corre a 60 pasos fijos por segundo: es la misma idea
-// que usaremos en Unity para que el online sea determinista.
+// empujón, dash, latas de técnica, peligros, muerte súbita, modos
+// (¡Gorrazo!, Lata Caliente, La Reta, Reto del Día), bots y
+// "game feel" (hit stop, cámara lenta, temblor, partículas, manchas).
+// La lógica corre a 60 pasos fijos por segundo con un Rng con semilla:
+// es la misma idea (y las mismas reglas de la spec v0.2) que el núcleo C#.
 // ─────────────────────────────────────────────────────────────
 import * as THREE from 'three';
-import { TUNING, PLAYER_COLORS, POWERUPS } from './config.js';
+import { TUNING, PLAYER_COLORS, POWERUPS, DEFAULT_RULES, KO_LABELS } from './config.js';
 import { Arena, ARENAS } from './arena.js';
 import { Toy, buildCap, makeBlobShadow, toon } from './characters.js';
 import { sfx } from './audio.js';
 import { labelTexture } from './textures.js';
 import { BotController } from './ai.js';
 import { emptyPad } from './input.js';
+import { Rng } from './rng.js';
 
 const T = TUNING;
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -22,6 +24,8 @@ const norm = (x, z) => { const d = Math.hypot(x, z); return d > 1e-6 ? { x: x / 
 const angleTo = (from, to) => { let d = to - from; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
 
 // ── Gorra (proyectil) ────────────────────────────────────────
+// Estados: held · out (ida) · return (regreso) · recall (llamada) ·
+// ground (en el piso) · deflect ("Te la regreso": va hacia su dueño y lo puede noquear)
 class Cap {
   constructor(game, owner, { ghost = false } = {}) {
     this.game = game;
@@ -34,7 +38,7 @@ class Cap {
     this.t = 0;
     this.radius = T.cap.radius;
     this.power = null;
-    this.mesh = buildCap(owner.color.hex);
+    this.mesh = buildCap(owner.color.hex, owner.capDesign);
     this.mesh.visible = false;
     this.shadow = makeBlobShadow(0.9);
     this.shadow.visible = false;
@@ -45,18 +49,25 @@ class Cap {
     this.trailT = 0;
     this.dead = false;
     this.fade = 0;
+    this.bounced = false;   // ya rebotó en pared → KO "de banda"
+    this.deflector = null;  // quien la desvió ("Te la regreso")
+    this.tagDone = false;   // ya pintó su Muro de Tag en este tiro
+    this.markTarget = null; // Tatuaje: a quién persigue
   }
 
-  lethal() { return this.state === 'out' || this.state === 'return' || this.state === 'recall'; }
+  lethal() { return this.state === 'out' || this.state === 'return' || this.state === 'recall' || this.state === 'deflect'; }
 
   launch(x, z, vx, vz, outTime, power) {
     this.state = 'out';
     this.pos.x = x; this.pos.z = z;
-    this.vel.x = vx; this.vel.z = vz;
-    this.v0 = Math.hypot(vx, vz);
+    // A5: Sticker XL va 10 % más lenta
+    const k = power === 'sticker' ? T.stickerSpeedMult : 1;
+    this.vel.x = vx * k; this.vel.z = vz * k;
+    this.v0 = Math.hypot(this.vel.x, this.vel.z);
     this.outTime = outTime;
     this.t = 0;
     this.power = power;
+    this.bounced = false; this.deflector = null; this.tagDone = false; this.markTarget = null;
     this.radius = T.cap.radius * (power === 'sticker' ? 2 : 1);
     this.mesh.scale.setScalar(power === 'sticker' ? 2 : 1);
     this.mesh.visible = true;
@@ -66,10 +77,33 @@ class Cap {
     this.mesh.traverse((o) => { if (o.material && this.ghost) o.material.opacity = 0.55; });
   }
 
+  // Grafiti · Muro de Tag: al terminar la ida o al rebotar
+  _paintTagWall() {
+    const g = this.game;
+    if (this.power !== 'grafiti' || this.tagDone || !g.rules.graffitiWall) return;
+    this.tagDone = true;
+    g.arena.addTagWall(this.pos.x, this.pos.z, this.vel.x, this.vel.z, this.owner.color.css, this);
+    sfx.clank();
+    g.puff(this.pos.x, 0.6, this.pos.z, 0xf4f1ea, 10);
+    g._emit('TagWall', { owner: this.owner.idx, x: this.pos.x, z: this.pos.z });
+  }
+
   startReturn() {
     if (this.state !== 'out') return;
+    this._paintTagWall();
     this.state = 'return';
     this.retSpeed = Math.max(6, Math.hypot(this.vel.x, this.vel.z));
+  }
+
+  // A4 "Te la regreso": sale hacia su dueño a 1.2× (máx. 22 m/s) y 0.6 s puede noquearlo
+  deflect(by) {
+    const sp = Math.max(6, Math.min(T.deflect.maxSpeed, Math.hypot(this.vel.x, this.vel.z) * T.deflect.speedMult));
+    const d = norm(this.owner.pos.x - this.pos.x, this.owner.pos.z - this.pos.z);
+    this.state = 'deflect';
+    this.deflector = by;
+    this.t = 0;
+    this.vel.x = d.x * sp; this.vel.z = d.z * sp;
+    this.y = T.cap.flyHeight;
   }
 
   recall() {
@@ -83,6 +117,7 @@ class Cap {
   drop(bvx = 0, bvz = 0) {
     if (this.ghost) { this.kill(); return; }
     this.state = 'ground';
+    this.deflector = null;
     this.vel.x = bvx; this.vel.z = bvz;
     this.t = 0;
   }
@@ -92,6 +127,7 @@ class Cap {
     this.mesh.visible = false;
     this.shadow.visible = false;
     this.power = null;
+    this.deflector = null;
   }
 
   kill() {
@@ -110,11 +146,13 @@ class Cap {
       const sp = this.v0 * (0.3 + 0.7 * k);
       let d = norm(this.vel.x, this.vel.z);
       if (this.power === 'tatuaje') {
-        const tgt = g.nearestEnemy(this.owner, this.pos, 11);
+        const tgt = g.nearestEnemy(this.owner, this.pos, T.tracking.range);
         if (tgt) {
+          if (tgt !== this.markTarget) { this.markTarget = tgt; g.onMarked(tgt, this); }
+          tgt.markedT = 0.2;
           const want = Math.atan2(tgt.pos.z - this.pos.z, tgt.pos.x - this.pos.x);
           const cur = Math.atan2(d.z, d.x);
-          const a = cur + clamp(angleTo(cur, want), -4.5 * dt, 4.5 * dt);
+          const a = cur + clamp(angleTo(cur, want), -T.tracking.turn * dt, T.tracking.turn * dt);
           d = { x: Math.cos(a), z: Math.sin(a) };
         }
       }
@@ -123,6 +161,19 @@ class Cap {
       if (this.state === 'out' && this.t >= this.outTime) {
         if (this.ghost) { this.kill(); return; }
         this.startReturn();
+      }
+    } else if (this.state === 'deflect') {
+      this._move(dt);
+      if (this.state === 'deflect' && this.t >= T.deflect.lethalTime) {
+        // después vuelve a ser una gorra normal en regreso
+        this.deflector = null;
+        if (this.ghost) { this.kill(); return; }
+        this.state = 'return';
+        this.retSpeed = Math.hypot(this.vel.x, this.vel.z);
+      }
+      // rastro rayado con el color de quien desvió
+      if (this.state === 'deflect' && this.deflector) {
+        g.trail(this.pos.x, this.y, this.pos.z, Math.floor(this.t * 30) % 2 ? this.deflector.color.hex : 0xffffff);
       }
     } else if (this.state === 'return') {
       if (!this.owner.alive) { this.drop(this.vel.x * 0.3, this.vel.z * 0.3); return; }
@@ -154,8 +205,8 @@ class Cap {
       }
     }
 
-    // rastro de aerosol (power-up Grafiti)
-    if (this.power === 'grafiti' && this.lethal()) {
+    // rastro de aerosol (respaldo de Grafiti con el interruptor Muro de Tag apagado)
+    if (this.power === 'grafiti' && !g.rules.graffitiWall && this.lethal()) {
       this.trailT -= dt;
       if (this.trailT <= 0) {
         this.trailT = 0.035;
@@ -170,22 +221,25 @@ class Cap {
     this.mesh.rotation.y += spinning * dt;
     this.mesh.rotation.x = this.lethal() ? 0.25 : lerp(this.mesh.rotation.x, 0, dt * 6);
     this.shadow.position.set(this.pos.x, 0.025, this.pos.z);
-    if (this.lethal() && Math.random() < 0.6) g.trail(this.pos.x, this.y, this.pos.z, this.owner.color.hex);
+    if (this.lethal() && this.state !== 'deflect' && Math.random() < 0.6) g.trail(this.pos.x, this.y, this.pos.z, this.owner.color.hex);
   }
 
   _move(dt) {
     const g = this.game;
     this.pos.x += this.vel.x * dt; this.pos.z += this.vel.z * dt;
-    const hit = g.arena.capCollision(this.pos, this.radius);
+    const hit = g.arena.capCollision(this.pos, this.radius, this);
     if (!hit) return;
     this.pos.x = hit.x; this.pos.z = hit.z;
     g.sparks(this.pos.x, this.y, this.pos.z, 0xffffff, 5);
-    if (this.power === 'tinta') { g.explode(this); return; }
+    if (this.power === 'tinta') { g.startPuddle(this, this.pos.x, this.pos.z); return; }
     if (this.ghost) { this.kill(); return; }
     if (this.state === 'out') {
-      // rebote en la pared: tiros de banda
+      // rebote en la pared: tiros de banda (la gorra desviada no rebota: cae, igual que C#)
       const dot = this.vel.x * hit.nx + this.vel.z * hit.nz;
       this.vel.x -= 2 * dot * hit.nx; this.vel.z -= 2 * dot * hit.nz;
+      this._paintTagWall();
+      this.bounced = true;
+      this.deflector = null;
       this.state = 'return';
       this.retSpeed = Math.hypot(this.vel.x, this.vel.z) * 0.8;
       sfx.clank();
@@ -207,12 +261,20 @@ class Player {
     this.color = PLAYER_COLORS[idx % PLAYER_COLORS.length];
     this.isBot = slot.type === 'bot';
     this.controller = slot.controller;
-    this.toy = new Toy({ color: this.color.hex, speciesIndex: slot.species ?? idx, shirt: slot.shirt || 'basica-blanca' });
+    this.capDesign = slot.capDesign || 'clasica';
+    this.toy = new Toy({ color: this.color.hex, speciesIndex: slot.species ?? idx, shirt: slot.shirt || 'basica-blanca', capDesign: this.capDesign });
     if (slot.capColor != null) this.toy.setCapColor(slot.capColor);
     this.toy.root.scale.setScalar(1.15); // un poco más grandes para leerse bien en celular
     game.scene.add(this.toy.root, this.toy.aim);
+    // ícono de "marcado" (Tatuaje · Trazo persiguiéndote)
+    this.markSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture('✦ MARCA ✦', '#f4f1ea'), depthWrite: false, depthTest: false, transparent: true }));
+    this.markSprite.scale.set(2.0, 0.5, 1);
+    this.markSprite.visible = false;
+    this.markSprite.renderOrder = 5;
+    game.scene.add(this.markSprite);
     this.cap = new Cap(game, this);
-    this.score = 0; this.kos = 0; this.roundWins = 0;
+    this.score = 0; this.kos = 0; this.roundWins = 0; this.streak = 0;
+    this.benched = false; // La Reta: esperando en la fila
     this.pad = emptyPad();
     this.reset({ x: 0, z: 0 });
   }
@@ -227,15 +289,29 @@ class Player {
     this.hasCap = true;
     this.cap.hold();
     this.dashT = 0; this.dashCd = 0; this.dashDir = { x: 0, z: 0 };
-    this.meleeT = 0; this.meleeCd = 0; this.meleeHits = null;
+    this.meleeT = 0; this.meleeCd = 0; this.meleeHits = null; this.meleeShove = false;
+    this.shoveCd = 0; this.pushT = 0; this.pushV = { x: 0, z: 0 };
     this.charging = false; this.chargeT = 0;
     this.power = null; this.shield = false; this.slowT = 0;
+    this.markedT = 0; this.hotImmune = 0;
     this.aiming = false;
     this.toy.root.visible = true;
     this.toy.setPower(null);
     this.toy.root.position.set(this.pos.x, 0, this.pos.z);
     this.toy.root.rotation.y = Math.atan2(this.facing.x, this.facing.z);
     this.spawnInvuln = 0.6;
+  }
+
+  // La Reta: fuera de la arena mientras espera turno
+  bench() {
+    this.benched = true;
+    this.alive = false;
+    this.hasCap = true;
+    this.cap.hold();
+    this.toy.root.visible = false;
+    this.toy.aim.visible = false;
+    this.markSprite.visible = false;
+    this.pos = { x: 0, z: 100 };
   }
 }
 
@@ -260,6 +336,7 @@ export class Game {
     this.particles = [];
     this.debris = [];
     this.paintPatches = [];
+    this.puddles = [];
     this.floaters = [];
     this.state = 'idle';
     this.timeScale = 1;
@@ -272,8 +349,14 @@ export class Game {
     this.camTarget = new THREE.Vector3();
     this.camBase = new THREE.Vector3();
     this.mode = 'menu';
+    this.modeId = 'gorrazo';
+    this.rules = { ...DEFAULT_RULES };
+    this.rng = new Rng(1);
+    this.eventCounts = {};
     this._particleGeo = new THREE.SphereGeometry(1, 6, 4);
     this._particleMats = new Map();
+    this._puddleGeo = new THREE.CircleGeometry(1, 40);
+    this._puddleRimGeo = new THREE.RingGeometry(0.94, 1, 40);
 
     this.floatLayer = hooks.floatLayer || null;
     window.addEventListener('resize', () => this.resize());
@@ -282,11 +365,18 @@ export class Game {
     requestAnimationFrame(this.loop);
   }
 
+  // Eventos de simulación (mismos nombres que el núcleo C#): la vista y las pruebas los escuchan
+  _emit(type, data = {}) {
+    this.eventCounts[type] = (this.eventCounts[type] || 0) + 1;
+    this.hooks.onEvent?.(type, data);
+  }
+
   // ── Configuración de escena ────────────────────────────────
   setArena(id) {
     if (this.arena) this.arena.dispose();
     const def = ARENAS[id] || ARENAS.callejon;
     this.arena = new Arena(this.scene, def);
+    this.arena.rng = this.rng;
     this.scene.background = new THREE.Color(def.sky);
     this.scene.fog = new THREE.Fog(def.fog, 30, 70);
     if (id === 'azotea') { this.hemi.color.setHex(0xffe0c0); this.hemi.groundColor.setHex(0x8a4b3a); this.sun.color.setHex(0xffd2a1); }
@@ -296,12 +386,15 @@ export class Game {
   }
 
   clearEntities() {
-    for (const p of this.players) { this.scene.remove(p.toy.root, p.toy.aim); p.cap.kill(); }
+    for (const p of this.players) { this.scene.remove(p.toy.root, p.toy.aim, p.markSprite); p.cap.kill(); }
     for (const c of this.caps) if (!c.dead) c.kill();
     for (const pu of this.pickups) this.scene.remove(pu.group);
     for (const d of this.debris) this.scene.remove(d.obj);
     for (const pa of this.particles) this.scene.remove(pa.mesh);
-    this.players = []; this.caps = []; this.pickups = []; this.debris = []; this.particles = []; this.paintPatches = [];
+    for (const pd of this.puddles) this.scene.remove(pd.group);
+    if (this.hotMesh) { this.scene.remove(this.hotMesh); this.hotMesh = null; }
+    this.players = []; this.caps = []; this.pickups = []; this.debris = []; this.particles = []; this.paintPatches = []; this.puddles = [];
+    this.hot = null;
     for (const f of this.floaters) f.el.remove();
     this.floaters = [];
     if (this.showcase) { this.scene.remove(this.showcase.root); this.showcase = null; }
@@ -313,61 +406,92 @@ export class Game {
     this.mode = 'menu';
     this.state = 'idle';
     this.setArena(outfit.arena || 'callejon');
-    this.showcase = new Toy({ color: PLAYER_COLORS[0].hex, speciesIndex: outfit.species ?? 0, shirt: outfit.shirt });
+    this._makeShowcase(outfit);
+    this.resize();
+  }
+
+  _makeShowcase(outfit) {
+    this.showcase = new Toy({ color: PLAYER_COLORS[0].hex, speciesIndex: outfit.species ?? 0, shirt: outfit.shirt, capDesign: outfit.cap || 'clasica' });
     if (outfit.capColor != null) this.showcase.setCapColor(outfit.capColor);
     this.showcase.root.scale.setScalar(1.6);
     this.scene.add(this.showcase.root);
-    this.resize();
   }
 
   updateShowcase(outfit) {
     if (!this.showcase) return;
     this.scene.remove(this.showcase.root);
-    this.showcase = new Toy({ color: PLAYER_COLORS[0].hex, speciesIndex: outfit.species ?? 0, shirt: outfit.shirt });
-    if (outfit.capColor != null) this.showcase.setCapColor(outfit.capColor);
-    this.showcase.root.scale.setScalar(1.6);
+    this._makeShowcase(outfit);
     this.showcase.triggerSquash(1);
-    this.scene.add(this.showcase.root);
   }
 
-  // slots: [{type:'human'|'bot', name, controller?, difficulty?, shirt?, species?, capColor?}]
-  startMatch({ slots, arenaId, pointsToWin = 5 }) {
+  // slots: [{type:'human'|'bot', name, controller?, difficulty?, shirt?, species?, capDesign?, autopilot?}]
+  // mode: 'gorrazo' | 'lataCaliente' | 'laReta' | 'retoDelDia'
+  startMatch({ slots, arenaId, pointsToWin = 5, mode = 'gorrazo', rules = {}, seed = null, pickupsEvery = null, pickupsMax = null }) {
     this.clearEntities();
     this.mode = 'match';
+    this.modeId = mode;
+    this.rules = { ...DEFAULT_RULES, ...rules };
+    this.seed = seed != null ? seed >>> 0 : ((Date.now() ^ Math.floor(performance.now() * 1000)) >>> 0);
+    this.rng = new Rng(this.seed);
+    this.pickupsEvery = pickupsEvery || T.pickups.every;
+    this.pickupsMax = pickupsMax || T.pickups.max;
+    this.eventCounts = {};
     const ids = Object.keys(ARENAS);
-    const chosen = arenaId === 'aleatorio' ? ids[Math.floor(Math.random() * ids.length)] : arenaId;
+    const chosen = arenaId === 'aleatorio' ? ids[this.rng.int(ids.length)] : arenaId;
     this.setArena(chosen);
-    this.pointsToWin = pointsToWin;
+    this.pointsToWin = mode === 'laReta' ? T.reta.streakToWin : pointsToWin;
     this.round = 0;
+    this.totalPlayTime = 0;
+    this.roundDurations = [];
     this.players = slots.map((s, i) => new Player(this, i, s));
     for (const p of this.players) {
-      if (p.isBot) p.controller = new BotController(this, p, p.slot.difficulty);
+      if (p.isBot || p.slot.autopilot) p.controller = new BotController(this, p, p.slot.difficulty || 'normal');
       if (p.controller && p.controller.useMouse) p.controller.aimFromMouse = (pad) => this._mouseAim(p, pad);
     }
+    // La Reta: fila de retadores (los dos primeros pelean)
+    this.queue = this.players.map((p) => p);
     this.hooks.onMatchStart?.(this.players, this.arena.def);
     this.nextRound();
   }
 
+  fighters() { return this.modeId === 'laReta' ? this.queue.slice(0, 2) : this.players; }
+
   nextRound() {
     this.round++;
-    // limpiar gorras fantasma, power-ups y charcos (las manchas del piso se quedan: el mural crece)
+    // limpiar gorras fantasma, latas, charcos y muros (las manchas del piso se quedan: el mural crece)
     for (const c of this.caps) if (c.ghost && !c.dead) c.kill();
     this.caps = this.caps.filter((c) => !c.dead && !c.ghost);
     for (const pu of this.pickups) this.scene.remove(pu.group);
     this.pickups = [];
     this.paintPatches = [];
-    const spawns = [...this.arena.def.spawns].sort(() => Math.random() - 0.5);
-    this.players.forEach((p, i) => {
+    for (const pd of this.puddles) this.scene.remove(pd.group);
+    this.puddles = [];
+    this.arena.clearTagWalls();
+    this.arena.setSuddenDeath(0, false);
+    this.hot = null;
+    if (this.hotMesh) this.hotMesh.visible = false;
+    // orden de spawns barajado con el Rng (Fisher–Yates)
+    const spawns = [...this.arena.def.spawns];
+    for (let i = spawns.length - 1; i > 0; i--) { const j = this.rng.int(i + 1); [spawns[i], spawns[j]] = [spawns[j], spawns[i]]; }
+    const fighting = this.fighters();
+    let k = 0;
+    for (const p of this.players) {
       if (p.cap.dead) { p.cap = new Cap(this, p); }
-      const s = spawns[i % spawns.length];
-      p.reset({ x: s[0], z: s[1] });
       if (!this.caps.includes(p.cap)) this.caps.push(p.cap);
-    });
+      if (!fighting.includes(p)) { p.bench(); continue; }
+      p.benched = false;
+      const s = spawns[k++ % spawns.length];
+      p.reset({ x: s[0], z: s[1] });
+    }
     this.pickupTimer = T.pickups.firstSpawn;
     this.state = 'countdown';
     this.countdown = T.round.countdown;
     this._lastCount = null;
     this.roundEndT = 0;
+    this.endTicks = null;
+    this.playT = 0;
+    this.sdWarned = false;
+    this.sdStarted = false;
     this.slowMo = 0;
     this.roundStartSim = this.simTime || 0;
     this.hooks.onRoundStart?.(this.round, this.players);
@@ -439,7 +563,14 @@ export class Game {
         this.state = 'play';
         sfx.beep(true);
         this.hooks.onCountdown?.('¡YA!');
+        if (this.modeId === 'lataCaliente') this._assignHotCan();
       }
+    }
+
+    if (this.state === 'play') {
+      this.playT += dt;
+      this.totalPlayTime += dt;
+      this._suddenDeath(dt);
     }
 
     const playing = this.state === 'play' || this.state === 'roundEnd';
@@ -451,15 +582,27 @@ export class Game {
 
     for (const c of this.caps) c.update(dt);
     this.caps = this.caps.filter((c) => !c.dead);
+    arena.updateTagWalls(dt);
     if (playing) {
       this._capHits();
       this._meleeHits();
       this._pickups(dt);
       this._hazards();
+      this._updatePuddles(dt);
+      this._updateHotCan(dt);
     }
     // charcos de pintura (lentitud)
     for (const pp of this.paintPatches) pp.life -= dt;
     this.paintPatches = this.paintPatches.filter((pp) => pp.life > 0);
+
+    // A1: espera de 6 ticks antes de declarar ganador (doble KO = empate)
+    if (this.state === 'play' && this.endTicks != null) {
+      this.endTicks--;
+      if (this.endTicks <= 0) {
+        const alive = this.fighters().filter((p) => p.alive);
+        this._endRound(alive.length === 1 ? alive[0] : null, alive.length === 0 ? 'doble' : '');
+      }
+    }
 
     if (this.state === 'roundEnd') {
       this.roundEndT -= dt;
@@ -467,8 +610,31 @@ export class Game {
     }
   }
 
+  // ── A2: muerte súbita ──────────────────────────────────────
+  _suddenDeath() {
+    const SD = T.suddenDeath;
+    if (!this.rules.suddenDeath) return;
+    const t = this.playT;
+    if (t >= SD.start && !this.sdWarned) {
+      this.sdWarned = true;
+      this._emit('SuddenDeathWarn');
+      this.hooks.onSuddenDeath?.();
+      sfx.beep(true);
+    }
+    const maxInset = Math.max(0, (this.arena.w - SD.minWidth) / 2);
+    const inset = clamp((t - SD.start - SD.warn) * SD.speed, 0, maxInset);
+    const warn = t >= SD.start && t < SD.start + SD.warn;
+    if (inset > 0 || warn) this.arena.setSuddenDeath(inset, warn, t);
+    if (inset > 0) {
+      // empujan, no matan: las latas del piso también se recorren
+      const hw = this.arena.w / 2 - inset - 0.6;
+      for (const pu of this.pickups) { pu.pos.x = clamp(pu.pos.x, -hw, hw); pu.group.position.x = pu.pos.x; }
+    }
+    if (t >= SD.drawAt && this.modeId !== 'lataCaliente' && this.state === 'play') this._endRound(null, 'tiempo');
+  }
+
   _updatePlayer(p, pad, dt, canAct) {
-    p.dashCd -= dt; p.meleeCd -= dt; p.slowT -= dt; p.spawnInvuln -= dt;
+    p.dashCd -= dt; p.meleeCd -= dt; p.shoveCd -= dt; p.slowT -= dt; p.spawnInvuln -= dt; p.markedT -= dt; p.hotImmune -= dt;
     if (p.meleeT > 0) p.meleeT -= dt;
 
     // dirección de movimiento y de apuntado
@@ -487,7 +653,7 @@ export class Game {
     if (!canAct) { mx = 0; mz = 0; }
 
     // dash
-    if (canAct && pad.dashPressed && p.dashCd <= 0) {
+    if (canAct && pad.dashPressed && p.dashCd <= 0 && p.pushT <= 1e-6) {
       p.dashT = T.player.dashTime;
       p.dashCd = T.player.dashCooldown;
       p.dashDir = mlen > 0.2 ? norm(mx, mz) : { ...p.facing };
@@ -512,20 +678,31 @@ export class Game {
       }
     }
 
-    // golpe
-    if (canAct && pad.meleePressed && p.hasCap && p.meleeCd <= 0 && !p.charging) {
-      if (pad.aim) p.facing = norm(pad.ax, pad.az);
-      else { const t = this._assistTarget(p, p.facing, 0.9, T.player.meleeRange + 1); if (t) p.facing = norm(t.pos.x - p.pos.x, t.pos.z - p.pos.z); }
-      p.meleeT = T.player.meleeTime;
-      p.meleeCd = T.player.meleeCooldown;
-      p.meleeHits = new Set();
-      p.toy.triggerMelee();
-      sfx.melee();
+    // golpe (con gorra) o empujón (sin gorra, A3)
+    if (canAct && pad.meleePressed && !p.charging) {
+      const shove = !p.hasCap && this.rules.shove && p.shoveCd <= 0;
+      if ((p.hasCap && p.meleeCd <= 0) || shove) {
+        if (pad.aim) p.facing = norm(pad.ax, pad.az);
+        else { const t = this._assistTarget(p, p.facing, 0.9, T.player.meleeRange + 1); if (t) p.facing = norm(t.pos.x - p.pos.x, t.pos.z - p.pos.z); }
+        p.meleeT = T.player.meleeTime;
+        p.meleeShove = shove;
+        if (shove) p.shoveCd = T.shove.cooldown; else p.meleeCd = T.player.meleeCooldown;
+        p.meleeHits = new Set();
+        p.toy.triggerMelee();
+        sfx.melee();
+      }
     }
 
     // movimiento
     let vx, vz;
-    if (p.dashT > 0) {
+    let pushEnd = false;
+    if (p.pushT > 1e-6) {
+      // empujón recibido: dash forzado (2.5 m en 0.2 s); al terminar se frena en seco
+      p.pushT -= dt;
+      vx = p.pushV.x; vz = p.pushV.z;
+      pushEnd = p.pushT <= 1e-6;
+      if (Math.random() < 0.6) this.trail(p.pos.x, 0.5, p.pos.z, 0xf4f1ea);
+    } else if (p.dashT > 0) {
       p.dashT -= dt;
       vx = p.dashDir.x * T.player.dashSpeed; vz = p.dashDir.z * T.player.dashSpeed;
       if (Math.random() < 0.7) this.trail(p.pos.x, 0.5, p.pos.z, p.color.hex);
@@ -539,6 +716,7 @@ export class Game {
     }
     p.vel.x = vx; p.vel.z = vz;
     p.pos.x += vx * dt; p.pos.z += vz * dt;
+    if (pushEnd) { p.vel.x = 0; p.vel.z = 0; p.pushT = 0; }
     this.arena.resolveCircle(p.pos, T.player.radius);
 
     // pintura de grafiti enemiga: te alenta
@@ -609,6 +787,12 @@ export class Game {
     return best;
   }
 
+  // Tatuaje · Trazo: la gorra empezó a perseguir a alguien
+  onMarked(target, cap) {
+    this._emit('Marked', { target: target.idx, owner: cap.owner.idx });
+    this.float(target.pos.x, 2.6, target.pos.z, '¡MARCADO!', '#f4f1ea');
+  }
+
   _separatePlayers() {
     const r2 = T.player.radius * 2;
     for (let i = 0; i < this.players.length; i++) {
@@ -635,13 +819,23 @@ export class Game {
     if (p.dashT > 0) { p.dashCd = 0; this.float(p.pos.x, 2.2, p.pos.z, '¡RECARGA!', p.color.css); }
   }
 
+  // A8: causa detallada de un KO por gorra
+  _capCause(c) {
+    if (c.ghost) return 'tiraje';
+    if (c.state === 'deflect') return 'teLaRegreso';
+    if (c.bounced) return 'deBanda';
+    if (c.state === 'return' || c.state === 'recall') return 'deRegreso';
+    return 'gorrazo';
+  }
+
   _capHits() {
+    const hotMode = this.modeId === 'lataCaliente';
     // gorra vs jugador
     for (const c of this.caps) {
       if (c.dead) continue;
       const owner = c.owner;
-      // atrapar la propia
-      if (!c.ghost && owner.alive) {
+      // atrapar la propia (una gorra desviada no se puede atrapar: te noquea)
+      if (!c.ghost && owner.alive && c.state !== 'deflect') {
         const canCatch = c.state === 'return' || c.state === 'recall' || (c.state === 'out' && c.t > T.cap.earlyCatchDelay);
         if (canCatch && Math.hypot(c.pos.x - owner.pos.x, c.pos.z - owner.pos.z) < T.cap.catchRadius + (c.radius - T.cap.radius)) {
           this._catch(owner);
@@ -649,10 +843,13 @@ export class Game {
         }
       }
       if (!c.lethal()) continue;
+      const attacker = c.state === 'deflect' ? c.deflector : owner;
       for (const v of this.players) {
-        if (v === owner || !v.alive || v.spawnInvuln > 0) continue;
+        if (!v.alive || v.spawnInvuln > 0) continue;
+        if (c.state === 'deflect') { if (v === c.deflector) continue; } else if (v === owner) continue;
         if (Math.hypot(c.pos.x - v.pos.x, c.pos.z - v.pos.z) < c.radius + T.player.radius * 0.85) {
-          if (c.power === 'tinta') { this.explode(c); break; }
+          if (hotMode) { if (attacker && this.hot && this.hot.holder === attacker) this._passHotCan(attacker, v); continue; }
+          if (c.power === 'tinta') { this.startPuddle(c, c.pos.x, c.pos.z); break; }
           if (v.shield) {
             v.shield = false;
             sfx.shieldBreak();
@@ -662,91 +859,220 @@ export class Game {
             this.shake = Math.max(this.shake, T.feel.shakeClank);
             break;
           }
-          this.kill(v, owner, c.ghost ? 'triple' : 'gorra');
+          this.kill(v, attacker, this._capCause(c));
         }
       }
     }
-    // gorra vs gorra: ¡CLANK! ambas caen
+    // gorra vs gorra: ¡CLANK! ambas caen (A6: 85 % de la suma de radios)
     const lethal = this.caps.filter((c) => !c.dead && c.lethal());
     for (let i = 0; i < lethal.length; i++) {
       for (let j = i + 1; j < lethal.length; j++) {
         const a = lethal[i], b = lethal[j];
         if (a.owner === b.owner || !a.lethal() || !b.lethal()) continue;
-        if (Math.hypot(a.pos.x - b.pos.x, a.pos.z - b.pos.z) < a.radius + b.radius) {
+        if (Math.hypot(a.pos.x - b.pos.x, a.pos.z - b.pos.z) < (a.radius + b.radius) * T.clankFactor) {
           const n = norm(a.pos.x - b.pos.x, a.pos.z - b.pos.z);
           a.drop(n.x * 7, n.z * 7); b.drop(-n.x * 7, -n.z * 7);
           sfx.clank();
           this.sparks((a.pos.x + b.pos.x) / 2, T.cap.flyHeight, (a.pos.z + b.pos.z) / 2, 0xfff59d, 14);
           this.float((a.pos.x + b.pos.x) / 2, 2.2, (a.pos.z + b.pos.z) / 2, '¡CLANK!', '#fff59d');
           this.shake = Math.max(this.shake, T.feel.shakeClank);
+          this._emit('Clank');
         }
       }
     }
   }
 
   _meleeHits() {
+    const hotMode = this.modeId === 'lataCaliente';
     for (const p of this.players) {
       if (!p.alive || p.meleeT <= T.player.meleeTime - T.player.meleeActive) continue;
       const fa = Math.atan2(p.facing.z, p.facing.x);
+      const inArc = (x, z, range, extra = 0) => {
+        const dx = x - p.pos.x, dz = z - p.pos.z;
+        return Math.hypot(dx, dz) <= range && Math.abs(angleTo(fa, Math.atan2(dz, dx))) <= T.player.meleeArc / 2 + extra;
+      };
       for (const v of this.players) {
         if (v === p || !v.alive || p.meleeHits.has(v) || v.spawnInvuln > 0) continue;
-        const dx = v.pos.x - p.pos.x, dz = v.pos.z - p.pos.z;
-        const d = Math.hypot(dx, dz);
-        if (d > T.player.meleeRange + T.player.radius * 0.5) continue;
-        if (Math.abs(angleTo(fa, Math.atan2(dz, dx))) > T.player.meleeArc / 2) continue;
+        if (!inArc(v.pos.x, v.pos.z, T.player.meleeRange + T.player.radius * 0.5)) continue;
         p.meleeHits.add(v);
+        if (hotMode && this.hot && this.hot.holder === p) this._passHotCan(p, v);
+        if (p.meleeShove) {
+          // A3: empujón, no noquea
+          const sp = T.shove.dist / T.shove.time;
+          v.pushT = T.shove.time; v.pushV = { x: p.facing.x * sp, z: p.facing.z * sp };
+          v.charging = false;
+          sfx.dash();
+          this.float(v.pos.x, 2.2, v.pos.z, '¡EMPUJÓN!', '#f4f1ea');
+          this._emit('Shove', { by: p.idx, target: v.idx });
+          continue;
+        }
+        if (hotMode) continue; // en Lata Caliente el golpe no noquea
         if (v.shield) {
           v.shield = false; sfx.shieldBreak();
           this.float(v.pos.x, 2.2, v.pos.z, '¡BLOQUEADO!', POWERUPS.bordado.css);
           continue;
         }
-        this.kill(v, p, 'golpe');
+        this.kill(v, p, 'zaz');
       }
-      // desviar gorras enemigas con el golpe
       for (const c of this.caps) {
-        if (c.owner === p || !c.lethal()) continue;
-        const dx = c.pos.x - p.pos.x, dz = c.pos.z - p.pos.z;
-        const d = Math.hypot(dx, dz);
-        if (d > T.player.meleeRange + 0.5) continue;
-        if (Math.abs(angleTo(fa, Math.atan2(dz, dx))) > T.player.meleeArc / 2 + 0.3) continue;
-        c.drop(p.facing.x * 9, p.facing.z * 9);
+        if (c.dead || c.owner === p || p.meleeHits.has(c)) continue;
+        if (p.meleeShove) {
+          // el empujón patea 4 m una gorra ajena caída
+          if (c.state !== 'ground' || !inArc(c.pos.x, c.pos.z, T.player.meleeRange + 0.5, 0.3)) continue;
+          p.meleeHits.add(c);
+          const v0 = T.shove.capKick * T.cap.groundFriction; // con fricción exponencial recorre v0/fricción
+          c.vel.x = p.facing.x * v0; c.vel.z = p.facing.z * v0;
+          sfx.clank();
+          this.puff(c.pos.x, 0.3, c.pos.z, 0xffffff, 6);
+          continue;
+        }
+        // desviar gorras enemigas con el golpe
+        if (!c.lethal() || c.deflector === p) continue;
+        if (!inArc(c.pos.x, c.pos.z, T.player.meleeRange + 0.5, 0.3)) continue;
+        p.meleeHits.add(c);
         sfx.clank();
         this.sparks(c.pos.x, c.y, c.pos.z, 0xfff59d, 12);
-        this.float(c.pos.x, 2.2, c.pos.z, '¡DESVÍO!', '#fff59d');
         this.shake = Math.max(this.shake, T.feel.shakeClank);
+        if (this.rules.deflectReturn && c.owner.alive && !c.ghost && !hotMode) {
+          c.deflect(p);
+          this.float(c.pos.x, 2.2, c.pos.z, '¡TE LA REGRESO!', p.color.css);
+          this._emit('Deflect', { by: p.idx, owner: c.owner.idx });
+        } else {
+          c.drop(p.facing.x * 9, p.facing.z * 9);
+          this.float(c.pos.x, 2.2, c.pos.z, '¡DESVÍO!', '#fff59d');
+        }
       }
     }
   }
 
-  explode(c) {
-    const R = 2.3;
-    sfx.explode();
-    this.arena.splat(c.pos.x, c.pos.z, 1.6, '#111111', 0.9);
-    this.burst(c.pos.x, 0.8, c.pos.z, 0x111111, 30, 9);
-    this.shake = Math.max(this.shake, T.feel.shakeKO);
-    for (const v of this.players) {
-      if (v === c.owner || !v.alive || v.spawnInvuln > 0) continue;
-      if (Math.hypot(v.pos.x - c.pos.x, v.pos.z - c.pos.z) < R) {
-        if (v.shield) { v.shield = false; sfx.shieldBreak(); continue; }
-        this.kill(v, c.owner, 'tinta');
-      }
-    }
+  // ── Tinta derramada · Charco ───────────────────────────────
+  startPuddle(c, x, z) {
+    const owner = c.owner;
     c.power = null;
     c.drop();
+    const group = new THREE.Group();
+    const fill = new THREE.Mesh(this._puddleGeo, new THREE.MeshBasicMaterial({ color: 0x121016, transparent: true, opacity: 0.7, depthWrite: false }));
+    const rim = new THREE.Mesh(this._puddleRimGeo, new THREE.MeshBasicMaterial({ color: 0xf4f1ea, transparent: true, opacity: 0.9, depthWrite: false }));
+    // borde final (para que se vea hasta dónde va a llegar)
+    const goal = new THREE.Mesh(this._puddleRimGeo, new THREE.MeshBasicMaterial({ color: 0xf4f1ea, transparent: true, opacity: 0.35, depthWrite: false }));
+    goal.scale.setScalar(T.puddle.radius);
+    for (const m of [fill, rim, goal]) { m.rotation.x = -Math.PI / 2; m.renderOrder = 2; }
+    fill.position.y = 0.05; rim.position.y = 0.06; goal.position.y = 0.055;
+    group.add(fill, rim, goal);
+    group.position.set(x, 0, z);
+    this.scene.add(group);
+    this.puddles.push({ x, z, t: 0, owner, group, fill, rim, done: false, fadeT: 0 });
+    sfx.explode();
+    this.burst(x, 0.6, z, 0x121016, 14, 5);
+    this._emit('PuddleStart', { owner: owner.idx, x, z });
+  }
+
+  _puddleRadius(pd) { return T.puddle.radius * clamp(pd.t / T.puddle.grow, 0, 1); }
+
+  _updatePuddles(dt) {
+    for (const pd of this.puddles) {
+      if (pd.done) {
+        pd.fadeT += dt;
+        pd.fill.material.opacity = Math.max(0, 0.7 - pd.fadeT);
+        pd.rim.material.opacity = Math.max(0, 0.9 - pd.fadeT * 2);
+        continue;
+      }
+      pd.t += dt;
+      const r = Math.max(0.05, this._puddleRadius(pd));
+      pd.fill.scale.setScalar(r); pd.rim.scale.setScalar(r);
+      if (pd.t >= T.puddle.grow) {
+        // al terminar de crecer noquea a quien siga dentro (excepto al dueño; el Parche bloquea)
+        pd.done = true;
+        pd.group.children[2].visible = false;
+        this.arena.splat(pd.x, pd.z, T.puddle.radius * 0.8, '#111111', 0.9);
+        this.burst(pd.x, 0.8, pd.z, 0x111111, 26, 8);
+        this.shake = Math.max(this.shake, T.feel.shakeKO);
+        this._emit('Explode', { owner: pd.owner.idx, x: pd.x, z: pd.z });
+        for (const v of this.players) {
+          if (v === pd.owner || !v.alive || v.spawnInvuln > 0) continue;
+          if (Math.hypot(v.pos.x - pd.x, v.pos.z - pd.z) < T.puddle.radius) {
+            if (v.shield) { v.shield = false; sfx.shieldBreak(); this.float(v.pos.x, 2.2, v.pos.z, '¡BLOQUEADO!', POWERUPS.bordado.css); continue; }
+            this.kill(v, pd.owner, 'splash');
+          }
+        }
+      }
+    }
+    for (const pd of this.puddles) if (pd.done && pd.fadeT > 1) this.scene.remove(pd.group);
+    this.puddles = this.puddles.filter((pd) => !(pd.done && pd.fadeT > 1));
+  }
+
+  // ── Modo Lata Caliente ─────────────────────────────────────
+  _ensureHotMesh() {
+    if (this.hotMesh) return this.hotMesh;
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.5, 14), toon(0x1c1b20));
+    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.205, 0.205, 0.14, 14), toon(0xf4f1ea));
+    const fuse = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    fuse.position.y = 0.36;
+    const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture('LATA CALIENTE', '#f4f1ea'), depthWrite: false, depthTest: false, transparent: true }));
+    label.scale.set(2.2, 0.55, 1); label.position.y = 0.85; label.renderOrder = 5;
+    g.add(body, band, fuse, label);
+    g.userData.fuse = fuse;
+    this.scene.add(g);
+    this.hotMesh = g;
+    return g;
+  }
+
+  _assignHotCan() {
+    const alive = this.players.filter((p) => p.alive);
+    if (alive.length < 2) return;
+    const holder = alive[this.rng.int(alive.length)];
+    const fuse = this.rng.range(T.hotCan.fuseMin, T.hotCan.fuseMax);
+    this.hot = { holder, fuse, max: fuse, t: 0 };
+    this._ensureHotMesh().visible = true;
+    sfx.pickup();
+    this.float(holder.pos.x, 2.8, holder.pos.z, '¡LATA CALIENTE!', '#f4f1ea', true);
+    this._emit('HotCanStart', { holder: holder.idx });
+    this.hooks.onKO?.(null, null, null); // refresca el HUD
+  }
+
+  _passHotCan(from, to) {
+    if (!this.hot || this.hot.holder !== from || to === from || !to.alive || to.hotImmune > 0) return;
+    this.hot.holder = to;
+    from.hotImmune = T.hotCan.passImmunity; // para que no regrese al instante
+    sfx.catch();
+    this.float(to.pos.x, 2.6, to.pos.z, '¡TE TOCA!', to.color.css);
+    this._emit('HotCanPass', { from: from.idx, to: to.idx });
+    this.hooks.onKO?.(null, null, null);
+  }
+
+  _updateHotCan(dt) {
+    if (this.modeId !== 'lataCaliente' || this.state !== 'play' || !this.hot) return;
+    this.hot.fuse -= dt;
+    this.hot.t += dt;
+    if (this.hot.fuse <= 0) {
+      const h = this.hot.holder;
+      this._emit('HotCanExplode', { holder: h.idx });
+      this.arena.splat(h.pos.x, h.pos.z, 1.8, '#111111', 0.9);
+      this.burst(h.pos.x, 1.2, h.pos.z, 0x111111, 30, 9);
+      sfx.explode();
+      this.hot = null;
+      if (this.hotMesh) this.hotMesh.visible = false;
+      this.kill(h, null, 'splash');
+      // luego se pega otra al azar entre los vivos
+      if (this.state === 'play' && this.endTicks == null) this._assignHotCan();
+    }
   }
 
   _hazards() {
     for (const p of this.players) {
-      if (p.alive && this.arena.laserHits(p.pos.x, p.pos.z, T.player.radius)) this.kill(p, null, 'laser');
+      if (p.alive && this.arena.laserHits(p.pos.x, p.pos.z, T.player.radius)) this.kill(p, null, 'zap');
     }
   }
 
   kill(v, killer, cause) {
-    if (!v.alive) return;
+    // ya declarada la ronda, nadie más cae (igual que el núcleo C#): el ganador conserva su punto
+    if (!v.alive || this.state !== 'play') return;
     v.alive = false;
     v.charging = false;
     v.toy.root.visible = false;
     v.toy.aim.visible = false;
+    v.markSprite.visible = false;
     if (killer && killer !== v) killer.kos++;
     // el juguete se desarma + mancha de tinta en el piso
     for (const piece of v.toy.makeDebris()) {
@@ -764,44 +1090,80 @@ export class Game {
     sfx.ko();
     this.hitStop = T.feel.hitStop;
     this.shake = Math.max(this.shake, T.feel.shakeKO);
-    const label = cause === 'laser' ? '¡ZAP!' : cause === 'golpe' ? '¡ZAZ!' : cause === 'tinta' ? '¡SPLASH!' : '¡KO!';
-    this.float(v.pos.x, 2.4, v.pos.z, label, killer ? killer.color.css : '#ff1744', true);
+    // A8: letrero según la causa
+    this.float(v.pos.x, 2.4, v.pos.z, KO_LABELS[cause] || '¡KO!', killer ? killer.color.css : '#ff1744', true);
     // su gorra cae y desaparece
     if (!v.hasCap && v.cap.state === 'ground') v.cap.fade = 0;
     v.power = null; v.shield = false;
+    this._emit('KO', { victim: v.idx, killer: killer ? killer.idx : -1, cause });
     this.hooks.onKO?.(v, killer, cause);
 
-    const alive = this.players.filter((p) => p.alive);
-    if (this.state === 'play' && alive.length <= 1) {
-      this.state = 'roundEnd';
-      this.roundEndT = T.round.endDelay;
-      this.slowMo = T.round.slowMoTime;
-      this.roundWinner = alive[0] || null;
+    // Lata Caliente: si el que la traía cae por otra cosa (láser), se pega a otro
+    if (this.hot && this.hot.holder === v) {
+      this.hot = null;
+      if (this.hotMesh) this.hotMesh.visible = false;
     }
+
+    const alive = this.fighters().filter((p) => p.alive);
+    if (this.state === 'play' && alive.length <= 1 && this.endTicks == null) {
+      // A1: no se declara ganador de inmediato; se espera 6 ticks
+      this.endTicks = T.round.doubleKoTicks;
+    } else if (this.modeId === 'lataCaliente' && this.state === 'play' && !this.hot && alive.length >= 2 && cause !== 'splash') {
+      this._assignHotCan();
+    }
+  }
+
+  // reason: '' (último en pie) · 'doble' (doble KO) · 'tiempo' (45 s de muerte súbita)
+  _endRound(winner, reason = '') {
+    if (this.state !== 'play') return;
+    this.state = 'roundEnd';
+    this.roundEndT = T.round.endDelay;
+    this.slowMo = T.round.slowMoTime;
+    this.roundWinner = winner;
+    this.roundEndReason = reason;
+    this.endTicks = null;
+    if (this.hotMesh) this.hotMesh.visible = false;
+    this._emit(winner ? 'RoundWin' : 'RoundDraw', { winner: winner ? winner.idx : -1, reason });
   }
 
   _finishRound() {
     const w = this.roundWinner;
     // métrica de balance: duración de cada ronda (segundos de juego)
-    (this.roundDurations ||= []).push(+((this.simTime || 0) - this.roundStartSim).toFixed(1));
-    if (w && w.alive) { w.score++; w.roundWins++; }
-    this.hooks.onRoundEnd?.(w, this.players);
-    if (w && w.score >= this.pointsToWin) {
+    this.roundDurations.push(+((this.simTime || 0) - this.roundStartSim).toFixed(1));
+    if (w && w.alive) { w.score++; w.roundWins++; w.streak++; }
+    let matchWinner = null;
+    if (this.modeId === 'laReta') {
+      const [a, b] = this.queue;
+      if (w && w.alive) {
+        // el ganador se queda; el perdedor va al final de la fila
+        const loser = w === a ? b : a;
+        loser.streak = 0;
+        this.queue = [w, ...this.queue.filter((p) => p !== w && p !== loser), loser];
+      }
+      // en empate ambos se quedan
+      if (w && w.streak >= T.reta.streakToWin) matchWinner = w;
+      else if (this.round >= T.reta.maxRounds) {
+        // desempate igual que el núcleo C#: más KOs y luego el asiento más bajo (sort estable)
+        matchWinner = [...this.players].sort((x, y) => y.score - x.score || y.kos - x.kos)[0];
+      }
+    } else if (w && w.score >= this.pointsToWin) matchWinner = w;
+    this.hooks.onRoundEnd?.(w, this.players, this.roundEndReason);
+    if (matchWinner) {
       this.state = 'matchEnd';
       sfx.win();
-      this.hooks.onMatchEnd?.({ winner: w, players: this.players, rounds: this.round, arena: this.arena.def });
+      this.hooks.onMatchEnd?.({ winner: matchWinner, players: this.players, rounds: this.round, arena: this.arena.def, mode: this.modeId, seconds: this.totalPlayTime, seed: this.seed });
       return;
     }
     this.state = 'between';
-    setTimeout(() => { if (this.mode === 'match' && this.state === 'between') this.nextRound(); }, 900 / this.debugSpeed);
+    setTimeout(() => { if (this.mode === 'match' && this.state === 'between') this.nextRound(); }, 900 / Math.max(1, this.debugSpeed));
   }
 
-  // ── Power-ups ──────────────────────────────────────────────
+  // ── Latas de técnica ───────────────────────────────────────
   _pickups(dt) {
-    if (this.state !== 'play') return;
+    if (this.state !== 'play' || this.modeId === 'lataCaliente') return; // sin latas de técnica en Lata Caliente
     this.pickupTimer -= dt;
-    if (this.pickupTimer <= 0 && this.pickups.length < T.pickups.max) {
-      this.pickupTimer = lerp(T.pickups.every[0], T.pickups.every[1], Math.random());
+    if (this.pickupTimer <= 0 && this.pickups.length < this.pickupsMax) {
+      this.pickupTimer = this.rng.range(this.pickupsEvery[0], this.pickupsEvery[1]);
       this._spawnPickup();
     }
     for (const pu of this.pickups) {
@@ -824,7 +1186,7 @@ export class Game {
 
   _spawnPickup() {
     const types = Object.keys(POWERUPS);
-    const type = types[Math.floor(Math.random() * types.length)];
+    const type = types[this.rng.int(types.length)];
     const def = POWERUPS[type];
     let pos = this.arena.randomFreePoint(1.0);
     for (let i = 0; i < 10; i++) {
@@ -911,6 +1273,12 @@ export class Game {
 
   float(x, y, z, text, color, big = false) {
     if (!this.floatLayer) return;
+    // evitar amontonamiento: el mismo letrero no se repite en 0.6 s y hay máximo 5 en pantalla
+    const now = performance.now();
+    this._lastFloat ||= {};
+    if (!big && now - (this._lastFloat[text] || 0) < 600) return;
+    this._lastFloat[text] = now;
+    while (this.floaters.length >= 5) { const old = this.floaters.shift(); old.el.remove(); }
     const el = document.createElement('div');
     el.className = 'floater' + (big ? ' big' : '');
     el.textContent = text;
@@ -952,7 +1320,21 @@ export class Game {
       });
       // parpadeo de invulnerabilidad al aparecer
       tr.visible = p.spawnInvuln > 0 ? Math.floor(p.spawnInvuln * 20) % 2 === 0 : true;
+      // ícono de marcado (Tatuaje)
+      p.markSprite.visible = p.markedT > 0;
+      if (p.markSprite.visible) p.markSprite.position.set(p.pos.x, 2.75 + Math.sin(this.simTime * 10) * 0.06, p.pos.z);
     }
+    // lata caliente sobre la cabeza de quien la trae: late más rápido al acercarse la explosión
+    if (this.hotMesh && this.hot && this.hot.holder.alive) {
+      const h = this.hot.holder;
+      this.hotMesh.visible = true;
+      this.hotMesh.position.set(h.pos.x, 2.05, h.pos.z);
+      this.hotMesh.rotation.y += dt * 3;
+      const rate = 3 + this.hot.t * 1.2;
+      const on = Math.sin(this.hot.t * rate * Math.PI * 2) > 0;
+      this.hotMesh.userData.fuse.material.color.setHex(on ? 0xffffff : 0xd55e00);
+      this.hotMesh.userData.fuse.scale.setScalar(on ? 1.3 : 0.9);
+    } else if (this.hotMesh) this.hotMesh.visible = false;
     // partículas
     for (const pa of this.particles) {
       pa.life -= dt;
@@ -1046,5 +1428,6 @@ export class Game {
   exitToMenu() {
     this.mode = 'menu';
     this.state = 'idle';
+    this.hot = null;
   }
 }

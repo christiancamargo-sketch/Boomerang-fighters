@@ -1,0 +1,23 @@
+<!-- Pruebas automáticas de la simulación y la red (sin Unity): `dotnet test` -->
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>9.0</LangVersion>
+    <Nullable>disable</Nullable>
+    <IsPackable>false</IsPackable>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../Assets/BoomerangFighters/Scripts/Core/**/*.cs" />
+    <Compile Include="../../Assets/BoomerangFighters/Scripts/Net/**/*.cs" />
+    <!-- Lógica pura de la capa Unity (sin UnityEngine): progreso local y Reto del Día -->
+    <Compile Include="../../Assets/BoomerangFighters/Scripts/Unity/LocalProgress.cs" />
+    <Compile Include="../../Assets/BoomerangFighters/Scripts/Unity/DailyChallenge.cs" />
+    <Compile Include="*.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+  </ItemGroup>
+</Project>
