@@ -1,0 +1,14 @@
+{
+    "name": "BoomerangFighters.Net",
+    "rootNamespace": "BoomerangFighters.Net",
+    "references": ["BoomerangFighters.Core"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": true
+}

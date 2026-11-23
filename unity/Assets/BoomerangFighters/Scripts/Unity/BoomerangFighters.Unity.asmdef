@@ -1,0 +1,14 @@
+{
+    "name": "BoomerangFighters.Unity",
+    "rootNamespace": "BoomerangFighters.UnityView",
+    "references": ["BoomerangFighters.Core", "BoomerangFighters.Net", "Unity.InputSystem"],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

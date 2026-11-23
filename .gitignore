@@ -12,3 +12,6 @@ prototipo/pruebas/capturas/
 [Uu]ser[Ss]ettings/
 *.csproj
 *.sln
+# .NET (pruebas fuera de Unity)
+unity/Tests~/**/bin/
+unity/Tests~/**/obj/
