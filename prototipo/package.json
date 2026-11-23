@@ -1,0 +1,15 @@
+{
+  "name": "prototipo-arena-inkcap",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Prototipo jugable (web) del party brawler: valida el game feel antes de pasar a Unity",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node pruebas/smoke.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.25.10",
+    "three": "0.186.1"
+  }
+}

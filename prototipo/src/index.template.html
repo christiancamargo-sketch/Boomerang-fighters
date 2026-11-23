@@ -1,0 +1,392 @@
+<!--@head-->
+<title>Gorrazo Arena</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#121016">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=DM+Sans:wght@400;600;800&family=Permanent+Marker&display=swap">
+<style>
+/* Layout: lienzo 3D a pantalla completa; menús como "stickers" encima, HUD pegado a los bordes seguros. */
+:root {
+  --ink: #121016;        /* fondo: tinta */
+  --ink-2: #1e1a26;      /* paneles */
+  --paper: #f4f1ea;      /* papel / texto */
+  --muted: #a9a3b5;
+  --hot: #ff6a2b;        /* naranja del jugador 1 */
+  --cool: #22c7e8;       /* cian (desfase de serigrafía) */
+  --gold: #ffd23f;
+  --line: #000;
+  --f-display: "Bungee", "Arial Black", Impact, system-ui, sans-serif;
+  --f-tag: "Permanent Marker", "Marker Felt", "Comic Sans MS", cursive;
+  --f-body: "DM Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body {
+  margin: 0; overflow: hidden; background: var(--ink); color: var(--paper);
+  font-family: var(--f-body); font-size: 15px;
+  -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
+  touch-action: none; overscroll-behavior: none;
+}
+#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+button { font: inherit; color: inherit; cursor: pointer; }
+button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outline-offset: 2px; }
+
+/* ── Pantallas ─────────────────────────────────────────── */
+.screen {
+  position: fixed; inset: 0; overflow-y: auto; z-index: 20;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: max(16px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-bottom, 0px));
+  display: flex; align-items: center; justify-content: center;
+}
+.screen > .panel { margin: auto; }
+.screen.dim { background: rgba(18, 16, 22, 0.78); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.panel {
+  background: var(--ink-2); border: 3px solid var(--line); border-radius: 14px;
+  box-shadow: 6px 6px 0 var(--line); padding: 20px 22px; width: min(760px, 100%);
+  max-height: 100%; overflow-y: auto; min-width: 0;
+}
+.panel h2 { font-family: var(--f-display); font-weight: 400; font-size: clamp(22px, 4vw, 32px); margin: 0 0 4px; letter-spacing: 0.02em; text-wrap: balance; }
+.panel .lead { color: var(--muted); margin: 0 0 16px; }
+.row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.spacer { flex: 1; }
+
+/* botón tipo sticker */
+.btn {
+  font-family: var(--f-display); font-size: 17px; letter-spacing: 0.04em;
+  background: var(--paper); color: var(--ink); border: 3px solid var(--line); border-radius: 12px;
+  padding: 12px 18px; box-shadow: 4px 4px 0 var(--line); transition: transform .08s, box-shadow .08s;
+}
+.btn:hover { transform: translate(-1px, -1px) rotate(-1deg); box-shadow: 5px 5px 0 var(--line); }
+.btn:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 var(--line); }
+.btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
+.btn.primary { background: var(--hot); color: #fff; font-size: 22px; padding: 14px 22px; }
+.btn.ghost { background: transparent; color: var(--paper); border-color: var(--paper); box-shadow: 4px 4px 0 var(--line); }
+.dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line); vertical-align: -1px; margin-right: 6px; }
+
+/* ── Menú principal ───────────────────────────────────── */
+#scr-menu { justify-content: flex-start; align-items: stretch; }
+.menu-col { display: flex; flex-direction: column; gap: 14px; width: min(420px, 100%); min-width: 0; margin-block: auto; }
+.logo {
+  font-family: var(--f-display); font-size: clamp(44px, 9vw, 86px); line-height: .92; margin: 0;
+  color: var(--paper); letter-spacing: 0.01em;
+  /* desfase de registro de serigrafía: tres tintas que no caen exacto */
+  text-shadow: -4px 3px 0 var(--cool), 4px -2px 0 var(--hot), 6px 7px 0 var(--line);
+  transform: rotate(-3deg); transform-origin: left center;
+}
+.tagline { font-family: var(--f-tag); font-size: clamp(17px, 2.6vw, 22px); color: var(--gold); margin: 2px 0 8px; transform: rotate(-2deg); }
+.profile {
+  display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center;
+  background: rgba(18,16,22,.72); border: 3px solid var(--line); border-radius: 12px; padding: 10px 12px; box-shadow: 4px 4px 0 var(--line);
+}
+.lvl { font-family: var(--f-display); background: var(--gold); color: var(--ink); border: 3px solid var(--line); border-radius: 10px; padding: 4px 10px; font-size: 18px; }
+.lvl small { font-size: 10px; display: block; letter-spacing: .08em; }
+.xpbar { height: 12px; background: #0b0a0e; border: 2px solid var(--line); border-radius: 8px; overflow: hidden; }
+.xpbar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--hot), var(--gold)); }
+.xp-text { font-size: 12px; color: var(--muted); margin-top: 3px; font-variant-numeric: tabular-nums; }
+.coins { font-family: var(--f-display); font-size: 16px; display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.drop { width: 14px; height: 14px; background: var(--cool); border: 2px solid var(--line); border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: inline-block; }
+.menu-btns { display: grid; gap: 10px; }
+.menu-btns .btn { text-align: left; position: relative; }
+.badge-dot { position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; border-radius: 50%; background: #ff1744; border: 3px solid var(--line); }
+.foot { font-size: 12px; color: var(--muted); }
+.stats { font-size: 12px; color: var(--muted); }
+
+/* ── Preparar partida ─────────────────────────────────── */
+.field { display: grid; gap: 6px; margin-bottom: 14px; }
+.field > label, .field > .lbl { font-size: 12px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 800; }
+.seg { display: flex; flex-wrap: wrap; gap: 6px; }
+.seg-btn { background: #0f0d13; border: 2px solid #3a3446; border-radius: 9px; padding: 8px 12px; font-weight: 800; }
+.seg-btn.on { background: var(--paper); color: var(--ink); border-color: var(--line); box-shadow: 3px 3px 0 var(--line); }
+.seg-btn:disabled { opacity: .35; cursor: not-allowed; }
+.arenas { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.arena-card { text-align: left; border: 3px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 4px; min-height: 76px; color: #fff; box-shadow: 3px 3px 0 var(--line); }
+.arena-card strong { font-family: var(--f-display); font-weight: 400; font-size: 15px; }
+.arena-card span { font-size: 12px; opacity: .85; }
+.arena-card.callejon { background: linear-gradient(135deg, #3a2e4a, #6a2c70); }
+.arena-card.museo { background: linear-gradient(135deg, #2d2f36, #7a6a52); }
+.arena-card.azotea { background: linear-gradient(135deg, #c0392b, #ff9a62); }
+.arena-card.aleatorio { background: repeating-linear-gradient(45deg, #222 0 10px, #2c2c2c 10px 20px); }
+.arena-card.on { outline: 3px solid var(--gold); outline-offset: 2px; }
+.controls-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
+.controls-list em { color: #ff8a80; font-style: normal; }
+.hint { font-size: 12px; color: var(--muted); }
+
+/* ── Vestidor ─────────────────────────────────────────── */
+#scr-wardrobe { justify-content: flex-start; }
+#scr-wardrobe .panel { width: min(520px, 100%); background: rgba(30,26,38,.93); }
+.shirts { display: grid; gap: 8px; }
+.shirt { display: grid; grid-template-columns: 64px 1fr auto; gap: 10px; align-items: center; background: #0f0d13; border: 2px solid #3a3446; border-radius: 12px; padding: 6px 10px 6px 6px; }
+.shirt img { border-radius: 8px; border: 2px solid var(--line); background: #fff; }
+.shirt.equipped { border-color: var(--gold); }
+.shirt.locked img { filter: saturate(.5) brightness(.8); }
+.shirt-info { min-width: 0; display: grid; }
+.shirt-info strong { font-size: 14px; }
+.shirt-info small { color: var(--muted); font-size: 12px; }
+.mini { background: var(--paper); color: var(--ink); border: 2px solid var(--line); border-radius: 9px; padding: 6px 10px; font-weight: 800; font-size: 13px; box-shadow: 2px 2px 0 var(--line); }
+.mini.buy { background: var(--cool); }
+.mini:disabled { opacity: .45; cursor: not-allowed; }
+.tag { font-size: 12px; color: var(--muted); text-align: right; max-width: 120px; }
+.tag.on { color: var(--gold); font-weight: 800; }
+.code-form { display: flex; gap: 8px; flex-wrap: wrap; }
+.code-form input { flex: 1; min-width: 140px; background: #0f0d13; color: var(--paper); border: 2px solid #3a3446; border-radius: 9px; padding: 10px 12px; font: inherit; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; user-select: text; -webkit-user-select: text; }
+#w-code-msg.ok { color: #69f0ae; } #w-code-msg.err { color: #ff8a80; }
+
+/* ── Premio diario ────────────────────────────────────── */
+.days { list-style: none; margin: 0 0 14px; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 8px; }
+.day { background: #0f0d13; border: 2px solid #3a3446; border-radius: 12px; padding: 10px; display: grid; gap: 4px; min-height: 74px; }
+.day b { font-family: var(--f-display); font-weight: 400; }
+.day span { font-size: 12px; color: var(--muted); }
+.day.today { border-color: var(--gold); box-shadow: 3px 3px 0 var(--line); background: #2a2333; }
+.day.claimed { opacity: .5; }
+.day.claimed b::after { content: " ✓"; color: #69f0ae; }
+.day.big { grid-column: span 2; background: linear-gradient(135deg, #2a2333, #3d2a1e); }
+
+/* ── Cómo se juega ────────────────────────────────────── */
+.how { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.how h3 { font-family: var(--f-display); font-weight: 400; font-size: 15px; margin: 0 0 6px; color: var(--gold); }
+.how ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
+.powers { list-style: none; padding: 0 !important; }
+.powers li { display: grid; grid-template-columns: 30px 1fr; gap: 8px; align-items: start; }
+.pw { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; background: var(--c); color: #111; border: 2px solid var(--line); font-weight: 900; }
+kbd { font-family: var(--f-body); font-weight: 800; background: var(--paper); color: var(--ink); border-radius: 5px; padding: 0 5px; border: 1px solid var(--line); font-size: 12px; }
+
+/* ── Resultados ───────────────────────────────────────── */
+.results-title { font-family: var(--f-display); font-size: clamp(30px, 6vw, 52px); margin: 0 0 10px; text-shadow: 4px 4px 0 var(--line); transform: rotate(-2deg); }
+.res-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); padding: 4px 6px; }
+td { padding: 6px; border-top: 1px solid #332d3d; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr.win td { color: var(--gold); font-weight: 800; }
+.xp-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 4px; font-size: 14px; }
+.xp-list li { display: flex; justify-content: space-between; gap: 8px; }
+.xp-list b { color: var(--gold); font-variant-numeric: tabular-nums; }
+.xp-list .coins b { color: var(--cool); }
+.levelup { font-family: var(--f-tag); color: var(--gold); font-size: 22px; }
+
+/* ── HUD de partida ───────────────────────────────────── */
+#hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+.hud-top {
+  position: absolute; top: 0; left: 0; right: 0; display: flex; gap: 8px; align-items: flex-start;
+  padding-top: calc(env(safe-area-inset-top, 0px) + 8px);
+  padding-left: max(10px, env(safe-area-inset-left, 0px)); padding-right: max(10px, env(safe-area-inset-right, 0px));
+}
+#hud-players { display: flex; gap: 6px; flex-wrap: wrap; flex: 1; justify-content: center; min-width: 0; }
+.chip { display: flex; align-items: center; gap: 6px; background: rgba(18,16,22,.82); border: 2px solid var(--line); border-left: 6px solid var(--c); border-radius: 9px; padding: 3px 8px; box-shadow: 2px 2px 0 var(--line); }
+.chip.out { opacity: .45; }
+.chip-name { font-family: var(--f-display); font-size: 12px; color: var(--c); }
+.pips { display: flex; gap: 3px; }
+.pips i { width: 9px; height: 9px; border-radius: 50%; background: #3a3446; border: 1px solid var(--line); }
+.pips i.on { background: var(--c); }
+.hud-btns { display: flex; gap: 6px; pointer-events: auto; }
+.icon-btn { width: 38px; height: 38px; border-radius: 10px; background: rgba(18,16,22,.82); border: 2px solid var(--line); display: grid; place-items: center; font-weight: 900; font-size: 13px; box-shadow: 2px 2px 0 var(--line); }
+.icon-btn.off { opacity: .45; text-decoration: line-through; }
+#banner { position: absolute; left: 50%; top: 40%; transform: translate(-50%, -50%); text-align: center; pointer-events: none; }
+.banner-main { font-family: var(--f-display); font-size: clamp(38px, 9vw, 90px); line-height: 1; text-shadow: -3px 3px 0 var(--cool), 3px -2px 0 var(--hot), 5px 6px 0 var(--line); white-space: nowrap; }
+.banner-sub { font-family: var(--f-tag); font-size: clamp(16px, 3vw, 24px); color: var(--paper); text-shadow: 2px 2px 0 var(--line); margin-top: 6px; }
+#banner.pop .banner-main { animation: pop .38s cubic-bezier(.2,1.6,.4,1); }
+@keyframes pop { from { transform: scale(.4) rotate(-8deg); opacity: 0; } to { transform: scale(1) rotate(0); opacity: 1; } }
+#floaters { position: fixed; inset: 0; pointer-events: none; z-index: 11; overflow: hidden; }
+.floater { position: absolute; left: 0; top: 0; font-family: var(--f-display); font-size: 16px; white-space: nowrap; text-shadow: 2px 2px 0 #000, -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000; will-change: transform; }
+.floater.big { font-size: 28px; }
+
+/* ── Controles táctiles ───────────────────────────────── */
+#touch { position: fixed; inset: 0; z-index: 12; pointer-events: none; }
+.t-zone { position: absolute; left: 0; top: 64px; bottom: 0; width: 50%; pointer-events: auto; touch-action: none; }
+.t-stick { position: absolute; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%; background: rgba(244,241,234,.12); border: 3px solid rgba(244,241,234,.5); pointer-events: none; }
+.t-knob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; border-radius: 50%; background: rgba(244,241,234,.85); border: 3px solid var(--line); transform: translate(-50%,-50%); }
+.t-btn { position: absolute; pointer-events: auto; touch-action: none; border: 3px solid var(--line); border-radius: 50%; font-family: var(--f-display); color: #fff; box-shadow: 3px 3px 0 var(--line); display: grid; place-items: center; text-align: center; line-height: 1; }
+.t-btn.down { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--line); filter: brightness(1.2); }
+.t-throw { width: 104px; height: 104px; right: calc(max(18px, env(safe-area-inset-right, 0px)) + 8px); bottom: calc(env(safe-area-inset-bottom, 0px) + 22px); background: var(--hot); font-size: 15px; }
+.t-throw small { font-family: var(--f-body); font-size: 9px; font-weight: 800; opacity: .85; display: block; margin-top: 2px; }
+.t-melee { width: 68px; height: 68px; right: calc(max(18px, env(safe-area-inset-right, 0px)) + 122px); bottom: calc(env(safe-area-inset-bottom, 0px) + 30px); background: #e84393; font-size: 12px; }
+.t-dash { width: 64px; height: 64px; right: calc(max(18px, env(safe-area-inset-right, 0px)) + 30px); bottom: calc(env(safe-area-inset-bottom, 0px) + 138px); background: var(--cool); color: var(--ink); font-size: 12px; }
+
+/* ── Aviso de orientación (solo táctil en vertical durante la partida) ── */
+#rotate-hint { display: none; }
+@media (orientation: portrait) and (pointer: coarse) {
+  body.in-match:not(.rotate-dismissed) #rotate-hint {
+    display: flex; position: fixed; inset: 0; z-index: 30; background: rgba(18,16,22,.92);
+    flex-direction: column; gap: 14px; align-items: center; justify-content: center; text-align: center;
+    padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+}
+.phone { width: 54px; height: 90px; border: 4px solid var(--paper); border-radius: 10px; animation: turn 1.6s ease-in-out infinite; }
+@keyframes turn { 0%, 30% { transform: rotate(0); } 60%, 100% { transform: rotate(-90deg); } }
+
+@media (max-height: 480px) {
+  .panel { padding: 14px 16px; }
+  .logo { font-size: clamp(34px, 7vw, 54px); text-shadow: -3px 2px 0 var(--cool), 3px -2px 0 var(--hot), 4px 5px 0 var(--line); }
+  .tagline { margin: 0 0 2px; font-size: 16px; }
+  .menu-col { gap: 8px; width: min(400px, 100%); }
+  .profile { padding: 6px 10px; }
+  .menu-btns { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .menu-btns .btn.primary { grid-column: span 2; }
+  .btn { padding: 8px 12px; font-size: 14px; }
+  .btn.primary { padding: 9px 16px; font-size: 18px; }
+  .stats { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .phone, #banner.pop .banner-main { animation: none; }
+  .btn:hover { transform: none; }
+}
+</style>
+<!--@body-->
+<canvas id="scene" aria-label="Arena de juego"></canvas>
+<div id="floaters"></div>
+
+<!-- HUD -->
+<div id="hud" hidden>
+  <div class="hud-top">
+    <div class="hud-btns"><button type="button" class="icon-btn" id="btn-pause" aria-label="Pausa">II</button></div>
+    <div id="hud-players"></div>
+    <div class="hud-btns">
+      <button type="button" class="icon-btn" id="btn-music" aria-label="Música">♪</button>
+      <button type="button" class="icon-btn" id="btn-sfx" aria-label="Efectos de sonido">FX</button>
+    </div>
+  </div>
+  <div id="banner" hidden></div>
+</div>
+<div id="touch" hidden></div>
+
+<!-- MENÚ -->
+<section class="screen" id="scr-menu" hidden>
+  <div class="menu-col">
+    <div>
+      <h1 class="logo" data-title>GORRAZO</h1>
+      <p class="tagline" data-tagline>Lanza tu gorra. Mancha a todos.</p>
+    </div>
+    <div class="profile">
+      <div class="lvl"><small>NIVEL</small><span id="m-level">1</span></div>
+      <div><div class="xpbar"><i id="m-xp"></i></div><div class="xp-text" id="m-xp-text">0 / 100 XP</div></div>
+      <div class="coins"><span class="drop" aria-hidden="true"></span><span id="m-coins">0</span></div>
+    </div>
+    <div class="menu-btns">
+      <button type="button" class="btn primary" data-go="setup">JUGAR</button>
+      <button type="button" class="btn" data-go="wardrobe">VESTIDOR</button>
+      <button type="button" class="btn" data-go="daily">PREMIO DIARIO<span class="badge-dot" id="m-daily-dot" hidden></span></button>
+      <button type="button" class="btn ghost" data-go="howto">CÓMO SE JUEGA</button>
+    </div>
+    <div class="stats" id="m-stats"></div>
+    <div class="foot"><span data-version>prototipo 0.1</span> · nombre y diseños de ejemplo, no son finales.</div>
+  </div>
+</section>
+
+<!-- PREPARAR PARTIDA -->
+<section class="screen dim" id="scr-setup" hidden>
+  <div class="panel">
+    <h2>Arma la reta</h2>
+    <p class="lead">Juega contra bots o con amigos en el mismo dispositivo (teclado o controles Bluetooth). El multijugador por Wi‑Fi llega en la versión Unity.</p>
+    <div class="field"><span class="lbl">Jugadores en este dispositivo</span><div class="seg" id="s-humans"></div></div>
+    <div class="field"><span class="lbl">Bots</span><div class="seg" id="s-bots"></div></div>
+    <div class="field"><span class="lbl">Dificultad de bots</span><div class="seg" id="s-diff"></div></div>
+    <div class="field"><span class="lbl">Escenario</span><div class="arenas" id="s-arena"></div></div>
+    <div class="field"><span class="lbl">Partida a</span><div class="seg" id="s-points"></div></div>
+    <div class="field"><span class="lbl">Quién juega</span><ul class="controls-list" id="s-controls"></ul><span class="hint" id="s-pads"></span></div>
+    <div class="row"><button type="button" class="btn ghost" data-go="menu">Atrás</button><span class="spacer"></span><button type="button" class="btn primary" id="btn-start">¡A PELEAR!</button></div>
+  </div>
+</section>
+
+<!-- VESTIDOR -->
+<section class="screen" id="scr-wardrobe" hidden>
+  <div class="panel">
+    <div class="row"><h2>Vestidor</h2><span class="spacer"></span><div class="coins"><span class="drop" aria-hidden="true"></span><span id="w-coins">0</span></div></div>
+    <p class="lead">Cada playera es una textura: en el juego real serán los diseños de los artistas de la marca.</p>
+    <div class="field"><span class="lbl">Muñequito</span><div class="seg" id="w-species"></div></div>
+    <div class="field"><span class="lbl">Playeras</span><div class="shirts" id="w-shirts"></div></div>
+    <div class="field">
+      <label for="w-code">¿Compraste la playera física? Canjea el código de la etiqueta</label>
+      <form class="code-form" id="w-code-form"><input id="w-code" autocomplete="off" placeholder="Ej. TINTA-2026" maxlength="24"><button type="submit" class="btn">Canjear</button></form>
+      <span class="hint" id="w-code-msg">Demo: prueba el código TINTA-2026.</span>
+    </div>
+    <div class="row"><button type="button" class="btn ghost" data-go="menu">Listo</button></div>
+  </div>
+</section>
+
+<!-- PREMIO DIARIO -->
+<section class="screen dim" id="scr-daily" hidden>
+  <div class="panel">
+    <h2>Premio diario</h2>
+    <p class="lead" id="d-streak">Empieza tu racha hoy</p>
+    <ul class="days" id="d-days"></ul>
+    <p class="hint" id="d-msg">Si faltas un día, la racha vuelve a empezar. El día 7 trae una playera exclusiva.</p>
+    <div class="row"><button type="button" class="btn ghost" data-go="menu">Atrás</button><span class="spacer"></span><button type="button" class="btn primary" id="btn-claim">Cobrar</button></div>
+  </div>
+</section>
+
+<!-- CÓMO SE JUEGA -->
+<section class="screen dim" id="scr-howto" hidden>
+  <div class="panel">
+    <h2>Cómo se juega</h2>
+    <p class="lead">Un golpe y quedas manchado. El último muñequito en pie gana la ronda.</p>
+    <div class="how">
+      <div>
+        <h3>Reglas</h3>
+        <ul>
+          <li>Tu gorra es tu arma: lánzala y regresa sola en curva.</li>
+          <li>Si choca de regreso con algo alto, cae al piso: <b>llámala</b> (botón lanzar) o recógela.</li>
+          <li>Sin gorra en la cabeza estás desarmado.</li>
+          <li>Golpe cuerpo a cuerpo: noquea y <b>desvía gorras</b>.</li>
+          <li>Dos gorras que chocan en el aire: ¡CLANK! ambas caen.</li>
+          <li>Mantén lanzar para cargar: más lejos y más rápido.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Controles</h3>
+        <ul>
+          <li><b>Táctil:</b> joystick a la izquierda; LANZAR (toca, mantén o arrastra para apuntar), GOLPE y DASH.</li>
+          <li><b>J1 teclado:</b> <kbd>WASD</kbd> mover, <kbd>E</kbd> o clic lanzar, <kbd>Q</kbd> o clic derecho golpe, <kbd>F</kbd>/<kbd>Espacio</kbd> dash, mouse apunta.</li>
+          <li><b>J2 teclado:</b> <kbd>IJKL</kbd> mover, <kbd>O</kbd> lanzar, <kbd>U</kbd> golpe, <kbd>H</kbd> dash.</li>
+          <li><b>Control:</b> stick izq. mover, stick der. apuntar, A/RT lanzar, X/RB golpe, B/LT dash.</li>
+          <li><kbd>Esc</kbd> o <kbd>P</kbd> pausa.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Latas de aerosol (power-ups)</h3>
+        <ul class="powers" id="h-powers"></ul>
+      </div>
+    </div>
+    <div class="row" style="margin-top:14px"><button type="button" class="btn ghost" data-go="menu">Atrás</button></div>
+  </div>
+</section>
+
+<!-- RESULTADOS -->
+<section class="screen dim" id="scr-results" hidden>
+  <div class="panel">
+    <h2 class="results-title" id="r-title">¡GANASTE!</h2>
+    <div class="res-grid">
+      <table>
+        <thead><tr><th>#</th><th>Jugador</th><th class="num">Pts</th><th class="num">KOs</th></tr></thead>
+        <tbody id="r-table"></tbody>
+      </table>
+      <div id="r-progress">
+        <ul class="xp-list" id="r-xp"></ul>
+        <div class="profile" style="grid-template-columns:auto 1fr">
+          <div class="lvl"><small>NIVEL</small><span id="r-level">1</span></div>
+          <div class="xpbar"><i id="r-bar"></i></div>
+        </div>
+        <p class="levelup" id="r-levelup" hidden></p>
+      </div>
+    </div>
+    <div class="row" style="margin-top:16px"><button type="button" class="btn ghost" id="btn-results-menu">Menú</button><span class="spacer"></span><button type="button" class="btn primary" id="btn-rematch">REVANCHA</button></div>
+  </div>
+</section>
+
+<!-- PAUSA -->
+<section class="screen dim" id="scr-pause" hidden>
+  <div class="panel" style="width:min(360px,100%)">
+    <h2>Pausa</h2>
+    <p class="lead">Respira. Nadie se mueve.</p>
+    <div class="row"><button type="button" class="btn ghost" id="btn-quit">Salir</button><span class="spacer"></span><button type="button" class="btn primary" id="btn-resume">Seguir</button></div>
+  </div>
+</section>
+
+<div id="rotate-hint" role="dialog" aria-label="Gira tu teléfono">
+  <div class="phone" aria-hidden="true"></div>
+  <p>Gira tu teléfono: la arena se ve mejor en horizontal.</p>
+  <button type="button" class="btn" id="btn-rotate-ok">Jugar así</button>
+</div>
+<!--@script-->
