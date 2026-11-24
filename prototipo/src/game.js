@@ -6,13 +6,17 @@
 // "game feel" (hit stop, cámara lenta, temblor, partículas, manchas).
 // La lógica corre a 60 pasos fijos por segundo con un Rng con semilla:
 // es la misma idea (y las mismas reglas de la spec v0.2) que el núcleo C#.
+// Spec v0.3: vacíos (caes si tu centro queda dentro sin dash ni empujón,
+// con crédito a quien te empujó/golpeó/desvió en los últimos 2 s), caja
+// DROP de la Pop-up Store, latas con etiqueta INKCAP y podio con la taza.
 // ─────────────────────────────────────────────────────────────
 import * as THREE from 'three';
 import { TUNING, PLAYER_COLORS, POWERUPS, DEFAULT_RULES, KO_LABELS } from './config.js';
 import { Arena, ARENAS } from './arena.js';
 import { Toy, buildCap, makeBlobShadow, toon } from './characters.js';
 import { sfx } from './audio.js';
-import { labelTexture } from './textures.js';
+import { labelTexture, canLabelTexture } from './textures.js';
+import { ESCENAS, skyColors, buildMug } from './escenografia.js';
 import { BotController } from './ai.js';
 import { emptyPad } from './input.js';
 import { Rng } from './rng.js';
@@ -197,6 +201,13 @@ class Cap {
       this.pos.x += this.vel.x * dt; this.pos.z += this.vel.z * dt;
       g.arena.resolveCircle(this.pos, this.radius);
       this.y = lerp(this.y, 0.14, dt * 10);
+      // V3: en el piso DENTRO de un vacío (su centro en el rectángulo completo) regresa sola
+      // de inmediato, como si la llamaran; si su dueño ya no está, se va al fondo
+      if (g.arena.voidAt(this.pos.x, this.pos.z, 0)) {
+        g._emit('CapVoidReturn', { owner: this.owner.idx });
+        if (this.owner.alive && !this.ghost) this.recall(); else this.kill();
+        return;
+      }
       // regreso automático: nadie se queda desarmado para siempre
       if (this.owner.alive && !this.ghost && this.t > T.cap.groundAutoReturn) { this.recall(); return; }
       if (!this.owner.alive) {
@@ -294,8 +305,10 @@ class Player {
     this.charging = false; this.chargeT = 0;
     this.power = null; this.shield = false; this.slowT = 0;
     this.markedT = 0; this.hotImmune = 0;
+    this.lastHitBy = null; this.lastHitT = -99; // V2: quién lo empujó/golpeó/desvió y cuándo
     this.aiming = false;
     this.toy.root.visible = true;
+    this.toy.root.scale.setScalar(1.15); // por si venía de caer a un vacío (se encoge)
     this.toy.setPower(null);
     this.toy.root.position.set(this.pos.x, 0, this.pos.z);
     this.toy.root.rotation.y = Math.atan2(this.facing.x, this.facing.z);
@@ -338,6 +351,10 @@ export class Game {
     this.paintPatches = [];
     this.puddles = [];
     this.floaters = [];
+    this.fallers = [];     // muñequitos cayendo a un vacío (animación)
+    this.drop = null;      // caja DROP con aviso en curso {x, z, landAt}
+    this.dropN = 0;        // cuántas cajas han caído en esta ronda
+    this._canMats = new Map();
     this.state = 'idle';
     this.timeScale = 1;
     this.debugSpeed = 1;
@@ -377,12 +394,36 @@ export class Game {
     const def = ARENAS[id] || ARENAS.callejon;
     this.arena = new Arena(this.scene, def);
     this.arena.rng = this.rng;
-    this.scene.background = new THREE.Color(def.sky);
+    // cielo en degradado (se ve en el menú y el podio; en partida casi todo es escenario)
+    if (this._skyTex) this._skyTex.dispose();
+    const [top, bottom] = skyColors(def.id);
+    const c = document.createElement('canvas'); c.width = 4; c.height = 128;
+    const ctx = c.getContext('2d');
+    const g = ctx.createLinearGradient(0, 0, 0, 128);
+    g.addColorStop(0, top); g.addColorStop(0.75, bottom); g.addColorStop(1, bottom);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, 4, 128);
+    this._skyTex = new THREE.CanvasTexture(c);
+    this._skyTex.colorSpace = THREE.SRGBColorSpace;
+    this.scene.background = this._skyTex;
     this.scene.fog = new THREE.Fog(def.fog, 30, 70);
-    if (id === 'azotea') { this.hemi.color.setHex(0xffe0c0); this.hemi.groundColor.setHex(0x8a4b3a); this.sun.color.setHex(0xffd2a1); }
-    else if (id === 'museo') { this.hemi.color.setHex(0xe8f0ff); this.hemi.groundColor.setHex(0x30344a); this.sun.color.setHex(0xffffff); }
-    else { this.hemi.color.setHex(0xd8c8ff); this.hemi.groundColor.setHex(0x3a2e4a); this.sun.color.setHex(0xfff0e0); }
+    const L = (ESCENAS[def.id] || ESCENAS.callejon).lights;
+    this.hemi.color.setHex(L.sky); this.hemi.groundColor.setHex(L.ground); this.sun.color.setHex(L.sun);
+    this.drop = null; this.dropN = 0;
     this.resize();
+  }
+
+  // Avanza la simulación a mano, sin esperar al reloj (pruebas y balance):
+  // los bots deciden en cada tick y las rondas se encadenan solas.
+  fastForward(maxTicks = 600, stopAtMatchEnd = true) {
+    let n = 0;
+    for (; n < maxTicks; n++) {
+      if (this.state === 'matchEnd' && stopAtMatchEnd) break;
+      if (this.state === 'between') this.nextRound();
+      for (const p of this.players) p.pad = p.controller ? p.controller.poll(T.dtFixed) : emptyPad();
+      this.step(T.dtFixed, true);
+      if (n % 6 === 5) this._fx(T.dtFixed * 6); // limpia partículas y piezas para no acumular
+    }
+    return n;
   }
 
   clearEntities() {
@@ -394,26 +435,33 @@ export class Game {
     for (const pd of this.puddles) this.scene.remove(pd.group);
     if (this.hotMesh) { this.scene.remove(this.hotMesh); this.hotMesh = null; }
     this.players = []; this.caps = []; this.pickups = []; this.debris = []; this.particles = []; this.paintPatches = []; this.puddles = [];
+    this.fallers = [];
+    this.drop = null; this.dropN = 0;
+    if (this.arena) this.arena.hideDrop();
     this.hot = null;
     for (const f of this.floaters) f.el.remove();
     this.floaters = [];
     if (this.showcase) { this.scene.remove(this.showcase.root); this.showcase = null; }
   }
 
-  // Escena del menú: tu muñequito girando en el callejón
+  // Escena del menú: tu muñequito girando en la Pop-up Store INKCAP (spec v0.3 §C)
   showMenu(outfit) {
     this.clearEntities();
     this.mode = 'menu';
     this.state = 'idle';
-    this.setArena(outfit.arena || 'callejon');
+    const id = outfit.arena || 'popup';
+    // si ya está puesta y limpia, no se reconstruye (entrar y salir del vestidor no da tirones)
+    if (!this.arena || this.arena.def.id !== id || this._arenaUsed) this.setArena(id);
+    this._arenaUsed = false;
     this._makeShowcase(outfit);
     this.resize();
   }
 
   _makeShowcase(outfit) {
-    this.showcase = new Toy({ color: PLAYER_COLORS[0].hex, speciesIndex: outfit.species ?? 0, shirt: outfit.shirt, capDesign: outfit.cap || 'clasica' });
+    this.showcase = new Toy({ color: outfit.color ?? PLAYER_COLORS[0].hex, speciesIndex: outfit.species ?? 0, shirt: outfit.shirt, capDesign: outfit.cap || 'clasica' });
     if (outfit.capColor != null) this.showcase.setCapColor(outfit.capColor);
     this.showcase.root.scale.setScalar(1.6);
+    if (outfit.trophy) this.showcase.holdTrophy(buildMug(1.55));
     this.scene.add(this.showcase.root);
   }
 
@@ -422,6 +470,22 @@ export class Game {
     this.scene.remove(this.showcase.root);
     this._makeShowcase(outfit);
     this.showcase.triggerSquash(1);
+  }
+
+  // Podio (spec v0.3 §C): el ganador levanta la taza INKCAP en el mismo escenario
+  // de la partida, que se queda con todas sus manchas de tinta.
+  showPodium(winner) {
+    const slot = winner.slot || {};
+    const look = { color: winner.color.hex, species: slot.species ?? winner.idx, shirt: slot.shirt || 'basica-blanca', cap: winner.capDesign, capColor: slot.capColor, trophy: true };
+    this.clearEntities();
+    this.mode = 'podium';
+    this.state = 'idle';
+    this.podiumT = 0;
+    this.podiumColor = winner.color.hex;
+    this.arena.setSuddenDeath(0, false);
+    this.arena.clearTagWalls();
+    this._makeShowcase(look);
+    this.resize();
   }
 
   // slots: [{type:'human'|'bot', name, controller?, difficulty?, shirt?, species?, capDesign?, autopilot?}]
@@ -436,9 +500,11 @@ export class Game {
     this.pickupsEvery = pickupsEvery || T.pickups.every;
     this.pickupsMax = pickupsMax || T.pickups.max;
     this.eventCounts = {};
+    // "Aleatorio" incluye los 4 escenarios (mismo orden que el núcleo C#)
     const ids = Object.keys(ARENAS);
     const chosen = arenaId === 'aleatorio' ? ids[this.rng.int(ids.length)] : arenaId;
     this.setArena(chosen);
+    this._arenaUsed = true;
     this.pointsToWin = mode === 'laReta' ? T.reta.streakToWin : pointsToWin;
     this.round = 0;
     this.totalPlayTime = 0;
@@ -468,6 +534,10 @@ export class Game {
     this.puddles = [];
     this.arena.clearTagWalls();
     this.arena.setSuddenDeath(0, false);
+    this.arena.hideDrop();
+    this.drop = null; this.dropN = 0;
+    for (const f of this.fallers) f.toy.root.visible = false;
+    this.fallers = [];
     this.hot = null;
     if (this.hotMesh) this.hotMesh.visible = false;
     // orden de spawns barajado con el Rng (Fisher–Yates)
@@ -504,7 +574,7 @@ export class Game {
     this.last = now;
     dt *= this.debugSpeed;
 
-    if (this.mode === 'menu') {
+    if (this.mode === 'menu' || this.mode === 'podium') {
       this._menuTick(dt);
     } else if (this.mode === 'match') {
       // leer controles una vez por cuadro
@@ -536,14 +606,32 @@ export class Game {
   }
 
   _menuTick(dt) {
+    const podium = this.mode === 'podium';
     if (this.showcase) {
-      // en pantallas anchas el muñequito se recorre a la derecha para no quedar bajo el menú
-      const wide = this.camera.aspect > 1.15;
-      this.showcase.root.position.set(wide ? Math.min(3.2, 1.2 + this.camera.aspect) : 0, 0, wide ? 3 : 1.5);
-      this.showcase.root.rotation.y += dt * 0.6;
-      this.showcase.update(dt, { speed01: 0, hasCap: true });
+      // el muñequito se para en el lugar libre de cada escenario; la cámara (ver _frame)
+      // lo deja a la derecha en pantallas anchas para que no quede bajo el menú
+      const [sx, sz] = this.arena.def.showcase;
+      const root = this.showcase.root;
+      if (podium) {
+        // el ganador brinca de gusto con la taza en alto, de frente a la cámara
+        this.podiumT += dt;
+        const t = this.podiumT;
+        root.position.set(sx, Math.abs(Math.sin(t * 3.4)) * 0.28, sz);
+        root.rotation.y = Math.sin(t * 1.3) * 0.45 - 0.15;
+        this._confettiT = (this._confettiT || 0) - dt;
+        if (this._confettiT <= 0) {
+          this._confettiT = 0.32;
+          const cols = [this.podiumColor, 0xccff00, 0xffffff, 0xffd23f];
+          this.burst(sx + (Math.random() - 0.5) * 4, 4 + Math.random(), sz + (Math.random() - 0.5) * 2, cols[Math.floor(Math.random() * cols.length)], 7, 3);
+        }
+      } else {
+        root.position.set(sx, 0, sz);
+        root.rotation.y += dt * 0.6;
+      }
+      this.showcase.update(dt, { speed01: 0, hasCap: true, cheer: podium });
     }
-    if (this.arena) this.arena.animate(dt);
+    if (this.arena) { this.arena.animate(dt); this.arena.tick(dt); }
+    this._fx(dt);
   }
 
   step(dt, consumeInput) {
@@ -588,6 +676,7 @@ export class Game {
       this._meleeHits();
       this._pickups(dt);
       this._hazards();
+      this._updateDrop();
       this._updatePuddles(dt);
       this._updateHotCan(dt);
     }
@@ -628,7 +717,10 @@ export class Game {
     if (inset > 0) {
       // empujan, no matan: las latas del piso también se recorren
       const hw = this.arena.w / 2 - inset - 0.6;
-      for (const pu of this.pickups) { pu.pos.x = clamp(pu.pos.x, -hw, hw); pu.group.position.x = pu.pos.x; }
+      for (const pu of this.pickups) {
+        pu.pos.x = clamp(pu.pos.x, -hw, hw); pu.group.position.x = pu.pos.x;
+        if (this.arena.voidAt(pu.pos.x, pu.pos.z, 0)) pu.taken = true; // el muro la tiró a un vacío
+      }
     }
     if (t >= SD.drawAt && this.modeId !== 'lataCaliente' && this.state === 'play') this._endRound(null, 'tiempo');
   }
@@ -717,7 +809,9 @@ export class Game {
     p.vel.x = vx; p.vel.z = vz;
     p.pos.x += vx * dt; p.pos.z += vz * dt;
     if (pushEnd) { p.vel.x = 0; p.vel.z = 0; p.pushT = 0; }
-    this.arena.resolveCircle(p.pos, T.player.radius);
+    // fuera de la ronda en juego ya nadie puede caer: los vacíos se vuelven sólidos
+    // para que el ganador no camine "en el aire" mientras festeja
+    this.arena.resolveCircle(p.pos, T.player.radius, this.state !== 'play');
 
     // pintura de grafiti enemiga: te alenta
     for (const pp of this.paintPatches) {
@@ -852,6 +946,7 @@ export class Game {
           if (c.power === 'tinta') { this.startPuddle(c, c.pos.x, c.pos.z); break; }
           if (v.shield) {
             v.shield = false;
+            this._credit(v, attacker); // V2: lo tocó con una gorra y le rompió el escudo
             sfx.shieldBreak();
             this.float(v.pos.x, 2.2, v.pos.z, '¡BLOQUEADO!', POWERUPS.bordado.css);
             const n = norm(c.pos.x - v.pos.x, c.pos.z - v.pos.z);
@@ -895,6 +990,7 @@ export class Game {
         if (v === p || !v.alive || p.meleeHits.has(v) || v.spawnInvuln > 0) continue;
         if (!inArc(v.pos.x, v.pos.z, T.player.meleeRange + T.player.radius * 0.5)) continue;
         p.meleeHits.add(v);
+        this._credit(v, p); // V2: lo empujó o le pegó con un golpe (si después cae a un vacío, el KO es suyo)
         if (hotMode && this.hot && this.hot.holder === p) this._passHotCan(p, v);
         if (p.meleeShove) {
           // A3: empujón, no noquea
@@ -930,6 +1026,7 @@ export class Game {
         if (!c.lethal() || c.deflector === p) continue;
         if (!inArc(c.pos.x, c.pos.z, T.player.meleeRange + 0.5, 0.3)) continue;
         p.meleeHits.add(c);
+        this._credit(c.owner, p); // V2: lo desvió
         sfx.clank();
         this.sparks(c.pos.x, c.y, c.pos.z, 0xfff59d, 12);
         this.shake = Math.max(this.shake, T.feel.shakeClank);
@@ -1063,9 +1160,72 @@ export class Game {
     for (const p of this.players) {
       if (p.alive && this.arena.laserHits(p.pos.x, p.pos.z, T.player.radius)) this.kill(p, null, 'zap');
     }
+    this._voids();
   }
 
-  kill(v, killer, cause) {
+  // ── Vacíos (spec v0.3 §A) ──────────────────────────────────
+  // V2: recuerda quién lo empujó / golpeó / desvió, y cuándo
+  _credit(victim, by) {
+    if (!victim || !by || victim === by) return;
+    victim.lastHitBy = by;
+    victim.lastHitT = this.simTime || 0;
+  }
+
+  // V1: cae quien tenga el CENTRO dentro de un vacío (reducido 0.15 m por lado)
+  // y no esté en dash ni empujado. Un dash o un empujón sí pueden cruzarlo.
+  _voids() {
+    for (const p of this.players) {
+      if (!p.alive || p.dashT > 0 || p.pushT > 1e-6) continue;
+      const v = this.arena.voidAt(p.pos.x, p.pos.z);
+      if (!v) continue;
+      // V2: el KO es de quien lo tocó en los últimos 2 s; si no, de nadie (como el láser)
+      const by = p.lastHitBy && (this.simTime || 0) - p.lastHitT <= T.voids.creditTime ? p.lastHitBy : null;
+      this.kill(p, by, 'vacio', v);
+    }
+  }
+
+  // ── Caja DROP (Pop-up Store, spec v0.3 §B4 y §E1) ──────────
+  // Tiempos sobre el reloj de la ronda en juego (desde el "¡YA!"): la caja CAE a los
+  // 8 s, 28 s, 48 s…; el aviso (DropWarn) sale 1.5 s antes en un punto libre al azar.
+  _updateDrop() {
+    const D = this.arena.dropDef;
+    if (!D || this.state !== 'play') return;
+    const t = this.playT + 1e-6;
+    if (!this.drop) {
+      const landAt = D.first + this.dropN * D.every;
+      if (t >= landAt - D.warn) {
+        const pos = this.arena.randomFreePoint(1.0);
+        this.drop = { x: pos.x, z: pos.z, landAt, warnAt: this.playT };
+        sfx.dropWarn();
+        this.float(pos.x, 2.6, pos.z, '¡AGUAS!', '#ccff00');
+        this._emit('DropWarn', { x: pos.x, z: pos.z, landAt });
+      }
+    }
+    if (this.drop && t >= this.drop.landAt) this._dropLand();
+  }
+
+  _dropLand() {
+    const { x, z } = this.drop;
+    this.drop = null;
+    this.dropN++;
+    this.arena.hideDrop();
+    sfx.dropLand();
+    this.shake = Math.max(this.shake, T.feel.shakeKO);
+    this.burst(x, 0.5, z, 0x17161a, 16, 7);
+    this.burst(x, 0.5, z, 0xccff00, 12, 6);
+    this.puff(x, 0.3, z, 0xd9d2c4, 12);
+    this._emit('DropLand', { x, z });
+    // noquea a quien esté a ≤ 1.1 m (centro a centro); el escudo bloquea. El KO no es de nadie.
+    for (const p of this.players) {
+      if (!p.alive || Math.hypot(p.pos.x - x, p.pos.z - z) > T.drop.radius) continue;
+      if (p.shield) { p.shield = false; sfx.shieldBreak(); this.float(p.pos.x, 2.2, p.pos.z, '¡BLOQUEADO!', POWERUPS.bordado.css); continue; }
+      this.kill(p, null, 'drop');
+    }
+    // deja una lata de técnica en ese lugar (en Lata Caliente o con las latas apagadas, no)
+    if (this.modeId !== 'lataCaliente' && this.rules.pickups !== false) this._spawnPickup({ x, z });
+  }
+
+  kill(v, killer, cause, hole = null) {
     // ya declarada la ronda, nadie más cae (igual que el núcleo C#): el ganador conserva su punto
     if (!v.alive || this.state !== 'play') return;
     v.alive = false;
@@ -1074,6 +1234,7 @@ export class Game {
     v.toy.aim.visible = false;
     v.markSprite.visible = false;
     if (killer && killer !== v) killer.kos++;
+    if (cause === 'vacio') { this._fall(v, killer, hole); return; }
     // el juguete se desarma + mancha de tinta en el piso
     for (const piece of v.toy.makeDebris()) {
       this.scene.add(piece.obj);
@@ -1092,6 +1253,26 @@ export class Game {
     this.shake = Math.max(this.shake, T.feel.shakeKO);
     // A8: letrero según la causa
     this.float(v.pos.x, 2.4, v.pos.z, KO_LABELS[cause] || '¡KO!', killer ? killer.color.css : '#ff1744', true);
+    this._afterKO(v, killer, cause);
+  }
+
+  // V7: caída a un vacío. El muñequito no se desarma: se hace chiquito hacia abajo y suena "fuuu".
+  _fall(v, killer, hole) {
+    const root = v.toy.root;
+    root.visible = true;
+    // se resbala hacia adentro del hueco para no atravesar la orilla
+    const cx = hole ? clamp(v.pos.x, hole.x - Math.max(0, hole.w / 2 - 0.55), hole.x + Math.max(0, hole.w / 2 - 0.55)) : v.pos.x;
+    const cz = hole ? clamp(v.pos.z, hole.z - Math.max(0, hole.d / 2 - 0.55), hole.z + Math.max(0, hole.d / 2 - 0.55)) : v.pos.z;
+    this.fallers.push({ toy: v.toy, t: 0, x: v.pos.x, z: v.pos.z, cx, cz });
+    sfx.fall();
+    this.puff(v.pos.x, 0.2, v.pos.z, 0xf4f1ea, 8);
+    this.hitStop = T.feel.hitStop * 0.6;
+    this.shake = Math.max(this.shake, T.feel.shakeKO * 0.6);
+    this.float(v.pos.x, 2.4, v.pos.z, KO_LABELS.vacio, killer ? killer.color.css : '#ff1744', true);
+    this._afterKO(v, killer, 'vacio');
+  }
+
+  _afterKO(v, killer, cause) {
     // su gorra cae y desaparece
     if (!v.hasCap && v.cap.state === 'ground') v.cap.fade = 0;
     v.power = null; v.shield = false;
@@ -1162,7 +1343,7 @@ export class Game {
   _pickups(dt) {
     if (this.state !== 'play' || this.modeId === 'lataCaliente') return; // sin latas de técnica en Lata Caliente
     this.pickupTimer -= dt;
-    if (this.pickupTimer <= 0 && this.pickups.length < this.pickupsMax) {
+    if (this.pickupTimer <= 0 && this.pickups.length < this.pickupsMax && this.rules.pickups !== false) {
       this.pickupTimer = this.rng.range(this.pickupsEvery[0], this.pickupsEvery[1]);
       this._spawnPickup();
     }
@@ -1184,29 +1365,37 @@ export class Game {
     this.pickups = this.pickups.filter((pu) => !pu.taken);
   }
 
-  _spawnPickup() {
+  // at: posición fija (la lata que deja la caja DROP); si no, un punto libre al azar
+  _spawnPickup(at = null) {
     const types = Object.keys(POWERUPS);
     const type = types[this.rng.int(types.length)];
     const def = POWERUPS[type];
-    let pos = this.arena.randomFreePoint(1.0);
-    for (let i = 0; i < 10; i++) {
+    let pos = at || this.arena.randomFreePoint(1.0);
+    for (let i = 0; i < 10 && !at; i++) {
       if (this.players.every((p) => !p.alive || Math.hypot(p.pos.x - pos.x, p.pos.z - pos.z) > 2.5)) break;
       pos = this.arena.randomFreePoint(1.0);
     }
     const group = new THREE.Group();
-    // lata de aerosol del color de la técnica
     const can = new THREE.Group();
-    // latas negro tinta + blanco hueso: nunca de los colores de jugador (GDD §9)
-    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.6, 14), toon(0x1c1b20));
-    const band = new THREE.Mesh(new THREE.CylinderGeometry(0.225, 0.225, 0.16, 14), toon(0xffffff));
-    band.position.y = 0.05;
-    const top = new THREE.Mesh(new THREE.SphereGeometry(0.22, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), toon(0xbdbdbd));
+    // latas negro tinta + banda blanca con el ícono de la técnica y el logo INKCAP (spec v0.3 §C):
+    // nunca de los colores de jugador (GDD §9)
+    this._canGeo ||= {
+      body: new THREE.CylinderGeometry(0.22, 0.22, 0.6, 18),
+      top: new THREE.SphereGeometry(0.22, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2),
+      nozzle: new THREE.CylinderGeometry(0.06, 0.06, 0.1, 8),
+      ring: new THREE.RingGeometry(0.5, 0.62, 28),
+      mTop: toon(0xbdbdbd), mNozzle: toon(0x212121),
+    };
+    if (!this._canMats.has(type)) this._canMats.set(type, toon(0xffffff, canLabelTexture(def.glyph)));
+    const body = new THREE.Mesh(this._canGeo.body, this._canMats.get(type));
+    const top = new THREE.Mesh(this._canGeo.top, this._canGeo.mTop);
     top.position.y = 0.3;
-    const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.1, 8), toon(0x212121));
+    const nozzle = new THREE.Mesh(this._canGeo.nozzle, this._canGeo.mNozzle);
     nozzle.position.y = 0.5;
-    can.add(body, band, top, nozzle);
+    can.add(body, top, nozzle);
     can.rotation.z = 0.25;
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.5, 0.62, 28), new THREE.MeshBasicMaterial({ color: 0xf4f1ea, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }));
+    can.scale.setScalar(1.25);
+    const ring = new THREE.Mesh(this._canGeo.ring, new THREE.MeshBasicMaterial({ color: 0xf4f1ea, transparent: true, opacity: 0.8, depthWrite: false, side: THREE.DoubleSide }));
     ring.rotation.x = -Math.PI / 2; ring.position.y = -0.5;
     const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture(`${def.glyph} ${def.name.toUpperCase()}`, '#f4f1ea'), depthWrite: false, transparent: true }));
     label.scale.set(2.2, 0.55, 1); label.position.y = 0.95;
@@ -1335,6 +1524,29 @@ export class Game {
       this.hotMesh.userData.fuse.material.color.setHex(on ? 0xffffff : 0xd55e00);
       this.hotMesh.userData.fuse.scale.setScalar(on ? 1.3 : 0.9);
     } else if (this.hotMesh) this.hotMesh.visible = false;
+    // caja DROP: sombra de aviso que crece y la caja bajando
+    if (this.drop && this.state === 'play') {
+      const D = T.drop;
+      this.arena.showDrop(this.drop.x, this.drop.z, clamp(1 - (this.drop.landAt - this.playT) / D.warn, 0, 1), this.simTime);
+    } else this.arena.hideDrop();
+    this._fx(dt);
+  }
+
+  // Efectos que también corren en el menú y el podio: caídas, partículas y piezas
+  _fx(dt) {
+    // V7: caída a un vacío (el muñequito se encoge hacia abajo, girando)
+    for (const f of this.fallers) {
+      f.t += dt;
+      const k = Math.min(1, f.t / 0.75);
+      const root = f.toy.root;
+      const slide = Math.min(1, k * 3);
+      root.position.set(lerp(f.x, f.cx, slide), -k * k * 3.4, lerp(f.z, f.cz, slide));
+      root.scale.setScalar(1.15 * (1 - 0.88 * k));
+      root.rotation.y += dt * 11;
+      root.rotation.z = Math.sin(f.t * 14) * 0.35 * (1 - k);
+      if (k >= 1) { root.visible = false; root.rotation.z = 0; }
+    }
+    this.fallers = this.fallers.filter((f) => f.t < 0.75);
     // partículas
     for (const pa of this.particles) {
       pa.life -= dt;
@@ -1351,7 +1563,11 @@ export class Game {
       d.vy -= 22 * dt;
       d.obj.position.x += d.vx * dt; d.obj.position.y += d.vy * dt; d.obj.position.z += d.vz * dt;
       d.obj.rotation.x += d.rx * dt; d.obj.rotation.z += d.rz * dt;
-      if (d.obj.position.y < d.r) { d.obj.position.y = d.r; d.vy = Math.abs(d.vy) * 0.45; d.vx *= 0.7; d.vz *= 0.7; d.rx *= 0.7; d.rz *= 0.7; }
+      // las piezas rebotan en el piso… salvo que caigan en un vacío: ahí se van al fondo
+      const overVoid = d.obj.position.y < d.r + 0.2 && this.arena.voidAt(d.obj.position.x, d.obj.position.z, 0);
+      if (overVoid) { if (d.obj.position.y < -3.2) d.life = 0; }
+      else if (d.obj.position.y < d.r && d.obj.position.y > -0.5) { d.obj.position.y = d.r; d.vy = Math.abs(d.vy) * 0.45; d.vx *= 0.7; d.vz *= 0.7; d.rx *= 0.7; d.rz *= 0.7; }
+      else if (d.obj.position.y <= -0.5) { if (d.obj.position.y < -3.2) d.life = 0; }
       const hw = this.arena.w / 2 - d.r, hh = this.arena.h / 2 - d.r;
       if (Math.abs(d.obj.position.x) > hw) { d.vx *= -0.6; d.obj.position.x = Math.sign(d.obj.position.x) * hw; }
       if (Math.abs(d.obj.position.z) > hh) { d.vz *= -0.6; d.obj.position.z = Math.sign(d.obj.position.z) * hh; }
@@ -1373,9 +1589,16 @@ export class Game {
 
   _frame() {
     const elev = THREE.MathUtils.degToRad(63);
-    if (this.mode === 'menu' || !this.arena) {
-      this.camBase.set(0, 3.4, 11.5);
-      this.camTarget.set(0, 1.4, 1.5);
+    if (this.mode !== 'match' || !this.arena) {
+      // menú y podio: cámara baja frente al muñequito; en pantallas anchas queda a la
+      // derecha (el menú o la tabla de resultados van a la izquierda)
+      const [sx, sz] = this.arena ? this.arena.def.showcase : [0, 3];
+      const wide = this.camera.aspect > 1.15;
+      const k = wide ? Math.min(3.2, 1.2 + this.camera.aspect) : 0;
+      const back = wide ? 8.5 : 10;
+      this.camBase.set(sx - k, 3.4, sz + back);
+      // en vertical, el podio sube al ganador (la tabla ocupa la parte de abajo)
+      this.camTarget.set(sx - k, this.mode === 'podium' && !wide ? -0.5 : 1.4, sz + back - 10);
       return;
     }
     const vfov = THREE.MathUtils.degToRad(this.camera.fov);
@@ -1383,9 +1606,12 @@ export class Game {
     const W = this.arena.w + 1.5, H = this.arena.h + 2.2;
     const dW = (W / 2) / Math.tan(hfov / 2);
     const dH = (H / 2) * Math.sin(elev) / Math.tan(vfov / 2) + H * 0.12;
-    const D = Math.max(dW, dH) * 1.02;
-    this.camTarget.set(0, 0, 0.6);
-    this.camBase.set(0, Math.sin(elev) * D, Math.cos(elev) * D + 0.6);
+    const D = Math.max(dW, dH) * 1.03;
+    // se mira un poco hacia el fondo: el muro del fondo (mural, logo) queda completo
+    // debajo de las fichas del HUD y se aprovecha el margen de abajo
+    const tz = -0.3;
+    this.camTarget.set(0, 0, tz);
+    this.camBase.set(0, Math.sin(elev) * D, Math.cos(elev) * D + tz);
   }
 
   _camera(dt) {
@@ -1403,7 +1629,7 @@ export class Game {
       }
     }
     this.camera.position.set(
-      this.camBase.x + tx + (Math.random() - 0.5) * s * 0.8,
+      this.camBase.x + (tx - this.camTarget.x) + (Math.random() - 0.5) * s * 0.8,
       this.camBase.y + (Math.random() - 0.5) * s * 0.8,
       this.camBase.z + (tz - this.camTarget.z) + (Math.random() - 0.5) * s * 0.8
     );

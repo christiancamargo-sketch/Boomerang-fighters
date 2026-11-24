@@ -7,6 +7,9 @@
 // v0.2 (spec D): desvían gorras ("Te la regreso"), empujan sin gorra
 // y en Lata Caliente persiguen (si traen la lata) o huyen.
 // Todas sus "tiradas de dado" usan el Rng de la partida.
+// v0.3 (spec V5): tratan los vacíos como obstáculos al moverse, no hacen
+// dash hacia un vacío y se alejan si quedan a menos de 0.8 m de una orilla.
+// En la tienda también se quitan de la sombra de la caja DROP.
 // ─────────────────────────────────────────────────────────────
 import { emptyPad } from './input.js';
 import { DIFFICULTY, TUNING } from './config.js';
@@ -71,10 +74,15 @@ export class BotController {
       this.pendingDodge.t -= dt;
       moveX = this.pendingDodge.dir.x; moveZ = this.pendingDodge.dir.z;
       if (this.pendingDodge.t <= 0) {
-        p.dashPressed = me.dashCd <= 0;
-        p.mx = moveX; p.mz = moveZ;
+        // V5: nunca un dash hacia un vacío; se prueba el otro lado y, si tampoco, solo camina
+        let d = this.pendingDodge.dir;
+        if (!this._dashSafe(d.x, d.z)) d = this._dashSafe(-d.x, -d.z) ? { x: -d.x, z: -d.z } : null;
         this.pendingDodge = null;
-        return p;
+        if (d) {
+          p.dashPressed = me.dashCd <= 0;
+          p.mx = d.x; p.mz = d.z;
+          return p;
+        }
       }
     }
 
@@ -114,7 +122,8 @@ export class BotController {
     if (me.hasCap) {
       // power-up cercano y seguro → ir por él
       const pu = this._nearestPickup();
-      if (pu && dist(me.pos, pu) < 6 && (!tgt || dist(me.pos, pu) < dist(me.pos, tgt.pos))) {
+      // (si hay un vacío de por medio no es "seguro": mejor seguir peleando)
+      if (pu && dist(me.pos, pu) < 6 && (!tgt || dist(me.pos, pu) < dist(me.pos, tgt.pos)) && !g.arena.voidOnPath(me.pos.x, me.pos.z, pu.x, pu.z)) {
         const d = norm(pu.x - me.pos.x, pu.z - me.pos.z);
         moveX += d.x; moveZ += d.z;
       } else if (tgt) {
@@ -189,21 +198,71 @@ export class BotController {
       this.think = 0.5 + this._rand() * 0.5;
     }
     moveX += this.wander.x; moveZ += this.wander.z;
+    return this._steer(p, moveX, moveZ);
+  }
 
-    // evitar obstáculos: sondeo hacia adelante
+  // Dirección final de movimiento: esquiva obstáculos y trata los vacíos como obstáculos (V5).
+  _steer(p, moveX, moveZ) {
+    const g = this.game, me = this.player, a = g.arena;
+    const R = TUNING.player.radius;
+    // V5: alejarse si quedó a menos de 0.8 m de la orilla de un vacío
+    const edge = a.voids.length ? a.voidNear(me.pos.x, me.pos.z, TUNING.voids.botEdge) : null;
+    if (edge) {
+      const k = 0.8 + 2.4 * (1 - edge.d / TUNING.voids.botEdge);
+      moveX += edge.ax * k; moveZ += edge.az * k;
+    }
+    // caja DROP: quitarse de la sombra de aviso
+    if (g.drop) {
+      const dx = me.pos.x - g.drop.x, dz = me.pos.z - g.drop.z;
+      const d = Math.hypot(dx, dz);
+      if (d < TUNING.drop.radius + 1.0) {
+        const n = d > 1e-3 ? { x: dx / d, z: dz / d } : { x: 1, z: 0 };
+        moveX += n.x * 3; moveZ += n.z * 3;
+      }
+    }
+    // evitar obstáculos (y vacíos): sondeo hacia adelante
     const look = 1.4;
     const n0 = norm(moveX, moveZ);
-    if (!g.arena.isFree(me.pos.x + n0.x * look, me.pos.z + n0.z * look, TUNING.player.radius * 0.9)) {
+    if (!a.isFree(me.pos.x + n0.x * look, me.pos.z + n0.z * look, R * 0.9)) {
       // gira 90° hacia el lado libre
       const l = { x: -n0.z, z: n0.x };
-      const leftFree = g.arena.isFree(me.pos.x + l.x * look, me.pos.z + l.z * look, TUNING.player.radius);
+      const leftFree = a.isFree(me.pos.x + l.x * look, me.pos.z + l.z * look, R);
       moveX = leftFree ? l.x : -l.x; moveZ = leftFree ? l.z : -l.z;
     }
-
+    // último seguro: nunca dar el paso que lo mete a un vacío
+    if (a.voids.length) {
+      const m0 = norm(moveX, moveZ);
+      const bad = (dx, dz) => a.voidNear(me.pos.x + dx * 0.6, me.pos.z + dz * 0.6, 0.3) || a.voidNear(me.pos.x + dx * 1.15, me.pos.z + dz * 1.15, 0.2);
+      if ((m0.x || m0.z) && bad(m0.x, m0.z)) {
+        let found = null;
+        for (const ang of [0.7, -0.7, 1.4, -1.4, 2.2, -2.2, Math.PI]) {
+          const c = Math.cos(ang), sn = Math.sin(ang);
+          const cx = m0.x * c - m0.z * sn, cz = m0.x * sn + m0.z * c;
+          if (!bad(cx, cz)) { found = { x: cx, z: cz }; break; }
+        }
+        moveX = found ? found.x : 0; moveZ = found ? found.z : 0;
+      }
+    }
     const m = norm(moveX, moveZ);
     const mag = Math.min(1, Math.hypot(moveX, moveZ));
     p.mx = m.x * mag; p.mz = m.z * mag;
+    // V5: nada de dash hacia un vacío
+    if (p.dashPressed) {
+      const d = mag > 0.2 ? m : me.facing;
+      if (!this._dashSafe(d.x, d.z)) p.dashPressed = false;
+    }
     return p;
+  }
+
+  // ¿El dash (2.7 m y la inercia) pasa lejos de todos los vacíos?
+  _dashSafe(dx, dz) {
+    const a = this.game.arena, me = this.player;
+    if (!a.voids.length) return true;
+    const L = TUNING.player.dashSpeed * TUNING.player.dashTime;
+    for (const k of [0.3, 0.6, 0.9, 1.2]) {
+      if (a.voidNear(me.pos.x + dx * L * k, me.pos.z + dz * L * k, 0.3)) return false;
+    }
+    return true;
   }
 
   // Lata Caliente: perseguir (con lata) o huir (sin lata). Lanza y golpea para pasarla.
@@ -236,17 +295,7 @@ export class BotController {
     if (!me.hasCap && me.cap.state === 'ground' && this.think <= 0) { p.throwPressed = true; p.throwReleased = true; this.think = 0.4; }
     const lz = g.arena.laserDanger(me.pos.x, me.pos.z, 1.6);
     if (lz !== null) moveZ += me.pos.z > lz ? 1.5 : -1.5;
-    const look = 1.4;
-    const n0 = norm(moveX, moveZ);
-    if (!g.arena.isFree(me.pos.x + n0.x * look, me.pos.z + n0.z * look, TUNING.player.radius * 0.9)) {
-      const l = { x: -n0.z, z: n0.x };
-      const leftFree = g.arena.isFree(me.pos.x + l.x * look, me.pos.z + l.z * look, TUNING.player.radius);
-      moveX = leftFree ? l.x : -l.x; moveZ = leftFree ? l.z : -l.z;
-    }
-    const m = norm(moveX, moveZ);
-    const mag = Math.min(1, Math.hypot(moveX, moveZ));
-    p.mx = m.x * mag; p.mz = m.z * mag;
-    return p;
+    return this._steer(p, moveX, moveZ);
   }
 
   // gorra rival letal que pasará a menos de 1.8 m en los próximos 0.25 s

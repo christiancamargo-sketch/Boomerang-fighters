@@ -1,4 +1,5 @@
-// Revisa la versión táctil en un celular horizontal (emulado).
+// Revisa la versión táctil en un celular horizontal (emulado): menú (la tienda),
+// vestidor, "Arma la reta" con los 4 escenarios y una partida táctil en la Pop-up Store.
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { resolve } from 'node:path';
@@ -10,6 +11,7 @@ mkdirSync(OUT, { recursive: true });
 const browser = await pw.chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const ctx = await browser.newContext({ ...pw.devices['iPhone 13 landscape'] });
 const page = await ctx.newPage();
+const innerW = pw.devices['iPhone 13 landscape'].viewport.width;
 const errors = [];
 page.on('pageerror', (e) => errors.push(String(e)));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -35,6 +37,11 @@ await page.waitForTimeout(200);
 await page.screenshot({ path: `${OUT}/m2b-setup-reto.png` });
 await page.tap('#s-mode [data-v="gorrazo"]');
 await page.waitForTimeout(200);
+// los 4 escenarios caben en la lista y se puede elegir la tienda
+const cards = await page.locator('#s-arena .arena-card').evaluateAll((els) => els.map((e) => e.dataset.v));
+if (cards.join() !== 'callejon,museo,azotea,popup,aleatorio') errors.push(`lista de escenarios: ${cards.join()}`);
+await page.tap('#s-arena [data-v="popup"]');
+await page.waitForTimeout(200);
 await page.screenshot({ path: `${OUT}/m2-setup.png` });
 await page.tap('#btn-start');
 await page.waitForTimeout(3000);
@@ -47,7 +54,13 @@ await page.mouse.up();
 await page.tap('#t-throw');
 await page.waitForTimeout(200);
 await page.screenshot({ path: `${OUT}/m3-partida.png` });
-const st = await page.evaluate(() => ({ cap: window.__game.players[0].cap.state, x: window.__game.players[0].pos.x }));
+const st = await page.evaluate(() => ({ arena: window.__game.arena.def.id, cap: window.__game.players[0].cap.state, x: window.__game.players[0].pos.x }));
+if (st.arena !== 'popup') errors.push(`no se jugó en la tienda: ${st.arena}`);
+// las fichas del HUD no tapan el muro del fondo (van a las esquinas en celular horizontal)
+const chips = await page.locator('#hud-players .chip').evaluateAll((els) => els.map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.right), Math.round(r.top)]; }));
+const centro = chips.filter(([l, r]) => r > innerW * 0.25 && l < innerW * 0.75).length;
+console.log('fichas del HUD (izq, der, arriba):', JSON.stringify(chips));
+if (centro) errors.push(`${centro} fichas del HUD tapan el centro del muro del fondo`);
 console.log('táctil:', JSON.stringify(st), 'errores:', errors.length ? errors : 'ninguno');
 await browser.close();
 if (errors.length) process.exit(1);

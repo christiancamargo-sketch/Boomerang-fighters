@@ -747,16 +747,17 @@ export function pitTexture(style = 'concreto') {
   const ctx = c.getContext('2d');
   const top = { concreto: '#6f6a78', neon: '#2a2440', edificio: '#8a5a48', tienda: '#5a5850' }[style] || '#6f6a78';
   const g = ctx.createLinearGradient(0, 0, 0, H);
+  // la orilla se ve apenas iluminada y enseguida se pierde en lo negro: se lee como hoyo profundo
   g.addColorStop(0, top);
-  g.addColorStop(0.1, top);
-  g.addColorStop(0.45, '#17141d');
-  g.addColorStop(0.8, '#050407');
+  g.addColorStop(0.035, top);
+  g.addColorStop(0.2, '#1d1924');
+  g.addColorStop(0.42, '#08070b');
   g.addColorStop(1, '#000000');
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
   // labio de la orilla + hiladas (ladrillo/colado) que dan escala a la profundidad
-  ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.fillRect(0, 0, W, 5);
+  ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.fillRect(0, 0, W, 4);
   ctx.fillStyle = 'rgba(0,0,0,0.35)';
-  for (let y = 14; y < H * 0.7; y += style === 'edificio' ? 9 : 22) ctx.fillRect(0, y, W, 2);
+  for (let y = 12; y < H * 0.5; y += style === 'edificio' ? 8 : 16) ctx.fillRect(0, y, W, 2);
   if (style === 'neon') {
     // líneas de luz de la instalación: se apagan hacia abajo
     const cols = ['#00e5ff', '#ff2bd6', '#00e5ff', '#ff2bd6', '#00e5ff'];

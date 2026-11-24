@@ -16,6 +16,9 @@ import {
 } from './textures.js';
 import { TUNING } from './config.js';
 import { ESCENAS, buildObstacle } from './escenografia.js';
+import { GEO, HIDDEN } from './geo.js';
+
+export { GEO };
 
 // Obstáculo: caja AABB en el plano XZ. h >= 1 bloquea gorras; h < 1 solo bloquea jugadores.
 const box = (x, z, w, d, h, kind) => ({ x, z, w, d, h, kind });
@@ -124,23 +127,6 @@ export const ARENAS = {
 };
 
 export const PX_PER_UNIT = 40;
-
-// Geometrías unitarias compartidas por todos los escenarios (se escalan por malla;
-// nunca se liberan: son poquitas y así no se recrean al cambiar de arena).
-export const GEO = {
-  box: new THREE.BoxGeometry(1, 1, 1),
-  cyl: new THREE.CylinderGeometry(1, 1, 1, 16),
-  cyl8: new THREE.CylinderGeometry(1, 1, 1, 8),
-  cone: new THREE.ConeGeometry(1, 1, 12),
-  sphere: new THREE.SphereGeometry(1, 14, 10),
-  dome: new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2),
-  plane: new THREE.PlaneGeometry(1, 1),
-  // plano acostado sobre el piso (mirando hacia arriba)
-  flat: new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2),
-  disc: new THREE.CircleGeometry(1, 32).rotateX(-Math.PI / 2),
-  ring: new THREE.RingGeometry(0.86, 1, 40).rotateX(-Math.PI / 2),
-};
-const HIDDEN = new THREE.MeshBasicMaterial({ visible: false });
 
 export class Arena {
   constructor(scene, def) {
@@ -385,13 +371,15 @@ export class Arena {
     const top = this.mat(wl.topColor ?? 0x555555);
     // muro del fondo: su cara es un canvas propio (mural, cuadros, logo…)
     const wm = W + t * 2;
-    const face = this.tmat(this.signCanvas(wm, wl.back, 2048, 256, (ctx, cw, ch) => this.sc.paintBackWall(ctx, cw, ch, this, (x) => (x + wm / 2) * 100)));
+    const faceTex = this.signCanvas(wm, wl.back, 2048, 256, (ctx, cw, ch) => this.sc.paintBackWall(ctx, cw, ch, this, (x) => (x + wm / 2) * 100));
+    // backUnlit: el muro se ve "iluminado por dentro" (la pared del logo de la tienda)
+    const face = wl.backUnlit ? this.glow(0xffffff, { map: faceTex }) : this.tmat(faceTex);
     const back = new THREE.Mesh(GEO.box, [cap, cap, top, cap, face, cap]);
     back.scale.set(wm, wl.back, t);
     back.position.set(0, wl.back / 2, -H / 2 - t / 2);
     this.group.add(back);
     // muros laterales
-    const sideTex = this.sc.sideTexture ? this.sc.sideTexture(this) : null;
+    const sideTex = this.sc.sideTexture ? this.own(this.sc.sideTexture(this)) : null;
     for (const sx of [-1, 1]) {
       let inner = this.mat(wl.sideColor ?? 0x555555);
       if (sideTex) {
@@ -648,6 +636,12 @@ export class Arena {
       } else best = { v, d, ax: dx / d, az: dz / d };
     }
     return best;
+  }
+
+  // ¿El tramo recto de a → b pasa por encima de un vacío? (IA: lo que hay del otro lado no es "seguro")
+  voidOnPath(ax, az, bx, bz, pad = 0.3) {
+    for (const v of this.voids) if (segmentHitsBox(ax, az, bx, bz, v, pad)) return v;
+    return null;
   }
 
   // ── Consultas de colisión ──────────────────────────────────

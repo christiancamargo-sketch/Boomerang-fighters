@@ -72,7 +72,9 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line); vertical-align: -1px; margin-right: 6px; }
 
 /* ── Menú principal ───────────────────────────────────── */
-#scr-menu { justify-content: flex-start; align-items: stretch; }
+#scr-menu { justify-content: flex-start; align-items: stretch;
+  /* velo oscuro del lado del menú: se lee igual sobre el piso claro de la tienda */
+  background: linear-gradient(90deg, rgba(18,16,22,.78) 0, rgba(18,16,22,.6) 300px, rgba(18,16,22,0) 620px); }
 .menu-col { display: flex; flex-direction: column; gap: 14px; width: min(420px, 100%); min-width: 0; margin-block: auto; }
 .logo {
   font-family: var(--f-display); font-size: clamp(44px, 9vw, 86px); line-height: .92; margin: 0;
@@ -113,6 +115,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 .arena-card.callejon { background: linear-gradient(135deg, #3a2e4a, #6a2c70); }
 .arena-card.museo { background: linear-gradient(135deg, #2d2f36, #7a6a52); }
 .arena-card.azotea { background: linear-gradient(135deg, #c0392b, #ff9a62); }
+.arena-card.popup { background: linear-gradient(135deg, #17161a 55%, #5d7400); }
 .arena-card.aleatorio { background: repeating-linear-gradient(45deg, #222 0 10px, #2c2c2c 10px 20px); }
 .arena-card.on { outline: 3px solid var(--gold); outline-offset: 2px; }
 .controls-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 14px; }
@@ -171,6 +174,18 @@ tr.win td { color: var(--gold); font-weight: 800; }
 .xp-list b { color: var(--gold); font-variant-numeric: tabular-nums; }
 .xp-list .coins b { color: var(--cool); }
 .levelup { font-family: var(--f-tag); color: var(--gold); font-size: 22px; }
+
+/* Podio: la tabla va a la izquierda y el ganador con la taza INKCAP se ve a la derecha */
+#scr-results { justify-content: flex-start; }
+#scr-results .panel { width: min(560px, 62vw); background: rgba(30,26,38,.93); }
+/* en pantallas anchas la tabla y el vestidor se pegan a la izquierda: el muñequito queda libre a la derecha */
+@media (min-aspect-ratio: 23/20) { #scr-results > .panel, #scr-wardrobe > .panel { margin: auto auto auto 0; } }
+#scr-results .res-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.trophy-line { font-family: var(--f-tag); color: var(--hot); font-size: clamp(15px, 2.2vw, 19px); margin: -4px 0 10px; transform: rotate(-1deg); }
+@media (orientation: portrait) {
+  #scr-results { align-items: flex-end; }
+  #scr-results .panel { width: 100%; max-height: 60%; margin: auto 0 0; }
+}
 
 /* ── HUD de partida ───────────────────────────────────── */
 #hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
@@ -265,6 +280,18 @@ tr.win td { color: var(--gold); font-weight: 800; }
 .chip.benched { opacity: .55; }
 .xp-list .first b { color: #69f0ae; }
 
+/* Celular horizontal: las fichas se van a las esquinas (bajo los botones) para no
+   tapar el muro del fondo, que es donde vive la marca INKCAP de cada escenario */
+@media (max-height: 480px) and (min-aspect-ratio: 3/2) {
+  .hud-top { justify-content: space-between; }
+  #hud-players { position: absolute; left: 0; right: 0; top: 0; display: block; flex: none; }
+  #hud-players .chip { position: absolute; --row: 0; top: calc(env(safe-area-inset-top, 0px) + 54px + var(--row) * 30px); padding: 2px 7px; }
+  #hud-players .chip:nth-child(odd) { left: max(10px, env(safe-area-inset-left, 0px)); }
+  #hud-players .chip:nth-child(even) { right: max(10px, env(safe-area-inset-right, 0px)); }
+  #hud-players .chip:nth-child(n+3) { --row: 1; }
+  #hud-players .chip:nth-child(n+5) { --row: 2; }
+  #hud-players .chip:nth-child(n+7) { --row: 3; }
+}
 @media (max-height: 480px) {
   .panel { padding: 14px 16px; }
   .cal { grid-template-columns: repeat(28, 1fr); }
@@ -412,7 +439,9 @@ tr.win td { color: var(--gold); font-weight: 800; }
           <li>Si choca de regreso con algo alto, cae al piso: <b>llámala</b> (botón lanzar) o recógela.</li>
           <li>Sin gorra en la cabeza estás desarmado.</li>
           <li>Golpe cuerpo a cuerpo: noquea y <b>te la regreso</b>: la gorra rival vuelve a su dueño y lo puede noquear.</li>
-          <li>Sin gorra, el golpe es un <b>empujón</b>: no noquea, pero te puede mandar al láser.</li>
+          <li>Sin gorra, el golpe es un <b>empujón</b>: no noquea, pero te puede mandar al láser o a un vacío.</li>
+          <li><b>Vacíos</b> (orilla de franjas o neón): si te paras encima, ¡AL VACÍO! Un <b>dash</b> los cruza. Si te empujaron o golpearon en los últimos 2 s, el KO es de quien te tocó.</li>
+          <li><b>Pop-up Store:</b> la caja <b>DROP</b> cae del techo a los 8 s y luego cada 20 s. Quítate de la sombra: noquea y deja una lata.</li>
           <li>Dos gorras que chocan en el aire: ¡CLANK! ambas caen.</li>
           <li>Si los dos últimos caen casi juntos: ¡EMPATE!</li>
           <li>A los 20 s, <b>muerte súbita</b>: los muros se cierran; a los 45 s, empate.</li>
@@ -446,10 +475,11 @@ tr.win td { color: var(--gold); font-weight: 800; }
 </section>
 
 <!-- RESULTADOS -->
-<section class="screen dim" id="scr-results" hidden>
+<section class="screen" id="scr-results" hidden>
   <div class="panel">
     <div class="brand-row"><span class="lbl" id="r-mode"></span><span class="spacer"></span><span class="seal">GORRAZO by <!--@inkcap--></span></div>
     <h2 class="results-title" id="r-title">¡GANASTE!</h2>
+    <p class="trophy-line" id="r-trophy">Se lleva la taza INKCAP</p>
     <div class="res-grid">
       <div>
         <table>

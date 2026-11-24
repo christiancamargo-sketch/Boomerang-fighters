@@ -6,7 +6,12 @@
   "type": "module",
   "scripts": {
     "build": "node build.mjs",
-    "test": "node pruebas/smoke.mjs"
+    "test": "node pruebas/smoke.mjs",
+    "test:movil": "node pruebas/movil.mjs",
+    "test:reglas": "node pruebas/reglas.mjs",
+    "test:todo": "node pruebas/smoke.mjs && node pruebas/movil.mjs && node pruebas/reglas.mjs",
+    "capturas": "node pruebas/arenas.mjs",
+    "balance": "node pruebas/balance.mjs"
   },
   "devDependencies": {
     "esbuild": "0.25.10",

@@ -387,6 +387,12 @@ export class Toy {
     this.powerRing.material.opacity = 0.85;
   }
 
+  // Podio: el ganador levanta la taza INKCAP con las dos manos (spec v0.3 §C)
+  holdTrophy(obj) {
+    this.trophy = obj;
+    this.pivot.add(obj);
+  }
+
   triggerThrow() { this.throwAnim = 1; }
   triggerMelee() { this.meleeAnim = 1; }
   triggerSquash(v = 1) { this.squash = v; }
@@ -433,6 +439,16 @@ export class Toy {
       rx = Math.sin(a) * 0.75; rz = Math.cos(a) * 0.75; ry = 0.7;
     }
     this.handR.position.set(rx, ry, rz);
+    if (s.cheer) {
+      // festejo: las dos manos arriba (sosteniendo el trofeo si lo trae)
+      const b = Math.sin(this.t * 6.5) * 0.035;
+      this.handL.position.set(-0.24, 1.86 + b, 0.1);
+      this.handR.position.set(0.24, 1.86 + b, 0.1);
+      if (this.trophy) {
+        this.trophy.position.set(0, 2.02 + b, 0.1);
+        this.trophy.rotation.z = Math.sin(this.t * 3.2) * 0.12;
+      }
+    }
 
     // parpadeo
     this.blinkT -= dt;

@@ -2,16 +2,17 @@
 // ARRANQUE: conecta juego + interfaz + progresión
 // ─────────────────────────────────────────────────────────────
 import { Game } from './game.js';
-import { UI } from './ui.js';
+import { UI, retoDeSemilla } from './ui.js';
 import { loadProgress } from './progress.js';
 import { endInputFrame, mouse, setupMouse } from './input.js';
 import { sfx } from './audio.js';
 import { loadMarca } from './marca.js';
-import { registerBrandDesigns } from './textures.js';
+import { registerBrandDesigns, clearSceneTextureCaches } from './textures.js';
 
 // Primero se cargan el logo y los diseños reales de INKCAP (incrustados en la página)
 function start() {
   loadProgress();
+  const fontsAtStart = !document.fonts || document.fonts.check('20px Bungee');
 
   const canvas = document.getElementById('scene');
   setupMouse(canvas);
@@ -70,9 +71,22 @@ function start() {
     game.startMatch({ slots, arenaId: 'aleatorio', pointsToWin: 3, seed: 20261123 });
   }
 
+  // Los rótulos de los escenarios se pintan en canvas: si las fuentes web llegaron
+  // después de armar el menú, se repinta la tienda con la tipografía buena.
+  if (document.fonts && document.fonts.ready && !fontsAtStart) {
+    document.fonts.ready.then(() => {
+      if (!document.fonts.check('20px Bungee') || game.mode !== 'menu') return;
+      clearSceneTextureCaches();
+      game._canMats.clear();
+      game._arenaUsed = true;
+      game.showMenu(ui._outfit());
+    });
+  }
+
   // Para pruebas automáticas y depuración
   window.__game = game;
   window.__ui = ui;
+  window.__retoDeSemilla = retoDeSemilla;
 }
 
 loadMarca().then(() => { registerBrandDesigns(); start(); });

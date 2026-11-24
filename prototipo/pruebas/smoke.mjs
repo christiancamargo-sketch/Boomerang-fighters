@@ -1,7 +1,10 @@
-// Prueba de humo (v0.2): abre el prototipo, revisa la marca, el vestidor con
+// Prueba de humo (v0.3): abre el prototipo, revisa la marca, el vestidor con
 // gorras, el premio diario (racha suave y gorra de la semana), la pantalla de
 // reglas, una partida con teclado y una partida de CADA modo con bots
-// acelerados hasta el final. Falla si hay errores de consola o algo no termina.
+// acelerados hasta el final, repartidas en los 4 ESCENARIOS (callejón, museo,
+// azotea y la Pop-up Store con su caja DROP). Revisa también el fondo del menú
+// (la tienda) y el podio con la taza INKCAP.
+// Falla si hay errores de consola o algo no termina.
 import { createRequire } from 'node:module';
 // Playwright viene preinstalado globalmente; si no, instálalo con: npm i -D playwright
 const require = createRequire(import.meta.url);
@@ -32,6 +35,8 @@ check(await page.evaluate(() => document.getElementById('loading').hidden), 'la 
 const seal = await page.locator('#scr-menu .seal').evaluate((el) => ({ text: el.innerText, logo: !!el.querySelector('img.inkcap-logo') }));
 check(/by/.test(seal.text) && (seal.logo || /INKCAP/.test(seal.text)), `menú con sello "by INKCAP" (logo: ${seal.logo})`);
 await page.screenshot({ path: `${OUT}/01-menu.png` });
+const menuArena = await page.evaluate(() => ({ id: window.__game.arena.def.id, mode: window.__game.mode, show: !!window.__game.showcase }));
+check(menuArena.id === 'popup' && menuArena.mode === 'menu' && menuArena.show, `el fondo del menú es la Pop-up Store INKCAP (${menuArena.id})`);
 
 // ── Vestidor: canje de código, gorras ─────────────────────────
 await page.click('text=VESTIDOR');
@@ -104,6 +109,9 @@ await page.click('#scr-rules >> text=Listo');
 await page.click('text=JUGAR');
 await page.waitForTimeout(300);
 await page.screenshot({ path: `${OUT}/05-setup.png` });
+const arenaCards = await page.locator('#s-arena .arena-card').evaluateAll((els) => els.map((e) => e.dataset.v));
+check(arenaCards.join() === 'callejon,museo,azotea,popup,aleatorio', `escenarios en la lista: ${arenaCards.join(', ')}`);
+check((await page.locator('#s-arena [data-v="popup"] strong').innerText()).includes('Pop-up Store'), 'la arena "Pop-up Store INKCAP" está en la lista');
 await page.click('#btn-start');
 await page.waitForTimeout(3200);
 await page.keyboard.down('KeyD'); await page.waitForTimeout(400); await page.keyboard.up('KeyD');
@@ -124,7 +132,7 @@ await page.click('#btn-quit');
 await page.waitForTimeout(300);
 
 // ── Una partida de cada modo con bots acelerados ─────────────
-async function playMode(mode, { bots = 3, points = 3, shot }) {
+async function playMode(mode, { bots = 3, points = 3, shot, arena = null }) {
   await page.click('text=JUGAR');
   await page.waitForTimeout(200);
   await page.evaluate(() => { window.__ui.autopilot = true; });
@@ -132,6 +140,7 @@ async function playMode(mode, { bots = 3, points = 3, shot }) {
   if (mode !== 'retoDelDia') {
     await page.click(`#s-bots [data-v="${bots}"]`);
     if (mode !== 'laReta') await page.click(`#s-points [data-v="${points}"]`);
+    if (arena) await page.click(`#s-arena [data-v="${arena}"]`);
   }
   await page.click('#btn-start');
   await page.evaluate(() => { window.__game.debugSpeed = 8; });
@@ -142,25 +151,35 @@ async function playMode(mode, { bots = 3, points = 3, shot }) {
     done = await page.evaluate(() => !document.getElementById('scr-results').hidden);
     if (i === 4) await page.screenshot({ path: `${OUT}/${shot}-juego.png` });
   }
+  await page.waitForTimeout(700);
   await page.screenshot({ path: `${OUT}/${shot}-resultados.png` });
   const info = await page.evaluate(() => {
     const g = window.__game;
-    return { mode: g.modeId, rounds: g.round, events: g.eventCounts, durations: g.roundDurations, scores: g.players.map((p) => `${p.name}:${p.score}/${p.kos}ko`), title: document.getElementById('r-title').textContent };
+    return {
+      mode: g.modeId, arena: g.arena.def.id, rounds: g.round, events: g.eventCounts, durations: g.roundDurations,
+      title: document.getElementById('r-title').textContent,
+      podium: g.mode === 'podium' && !!(g.showcase && g.showcase.trophy), trophy: document.getElementById('r-trophy').textContent,
+    };
   });
-  console.log(`  ${mode}: ${((Date.now() - t0) / 1000).toFixed(0)} s reales ·`, JSON.stringify(info));
-  check(done, `modo ${mode} terminó (${info.rounds} rondas, "${info.title}")`);
+  console.log(`  ${mode} en ${info.arena}: ${((Date.now() - t0) / 1000).toFixed(0)} s reales ·`, JSON.stringify(info));
+  check(done, `modo ${mode} terminó en ${info.arena} (${info.rounds} rondas, "${info.title}")`);
+  check(!arena || info.arena === arena, `se jugó en el escenario elegido (${info.arena})`);
+  check(info.podium && /taza INKCAP/.test(info.trophy), `podio: el ganador levanta la taza INKCAP ("${info.trophy}")`);
   await page.evaluate(() => { window.__game.debugSpeed = 1; window.__ui.autopilot = false; });
   await page.click('#btn-results-menu');
   await page.waitForTimeout(300);
   return info;
 }
 
-const gz = await playMode('gorrazo', { bots: 3, points: 3, shot: '07-gorrazo' });
+// una partida de bots hasta el final en cada uno de los 4 escenarios
+const gz = await playMode('gorrazo', { bots: 3, points: 3, shot: '07-gorrazo', arena: 'callejon' });
 check((gz.events.KO || 0) > 0, `¡Gorrazo!: hubo KOs (${gz.events.KO})`);
-const lc = await playMode('lataCaliente', { bots: 3, points: 3, shot: '08-lata' });
+const lc = await playMode('lataCaliente', { bots: 3, points: 3, shot: '08-lata', arena: 'museo' });
 check((lc.events.HotCanStart || 0) > 0 && (lc.events.HotCanExplode || 0) > 0, `Lata Caliente: se pegó (${lc.events.HotCanStart}), pasó (${lc.events.HotCanPass || 0}) y explotó (${lc.events.HotCanExplode})`);
-const rt = await playMode('laReta', { bots: 3, shot: '09-reta' });
+const rt = await playMode('laReta', { bots: 3, shot: '09-reta', arena: 'azotea' });
 check(rt.rounds >= 3 && rt.rounds <= 10, `La Reta terminó en ${rt.rounds} rondas (3 seguidas o 10 rondas)`);
+const pp = await playMode('gorrazo', { bots: 3, points: 3, shot: '11-popup', arena: 'popup' });
+check((pp.events.DropWarn || 0) > 0 && (pp.events.DropLand || 0) > 0, `Pop-up Store: la caja DROP avisó (${pp.events.DropWarn || 0}) y cayó (${pp.events.DropLand || 0})`);
 const rd = await playMode('retoDelDia', { shot: '10-reto' });
 const reto = await page.evaluate(() => JSON.parse(localStorage.getItem('gorrazo.retoDelDia.v1') || '{}'));
 const today = await page.evaluate(() => { const d = new Date(); return String(d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()); });
@@ -168,7 +187,7 @@ check(reto[today] != null, `Reto del Día: mejor puntaje de hoy guardado (${toda
 check(rd.events && rd.mode === 'retoDelDia', 'Reto del Día con semilla del día');
 
 const p2 = await page.evaluate(() => JSON.parse(localStorage.getItem('arena-inkcap.progress.v1')));
-check(p2.stats.matches >= 4, `progreso: ${p2.stats.matches} partidas, nivel ${p2.level}, ${p2.coins} Gotas`);
+check(p2.stats.matches >= 5, `progreso: ${p2.stats.matches} partidas, nivel ${p2.level}, ${p2.coins} Gotas`);
 
 console.log('errores de consola:', errors.length ? errors : 'ninguno');
 await browser.close();

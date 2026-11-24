@@ -115,6 +115,22 @@ export const sfx = {
   ui() {
     tone({ type: 'triangle', f0: 740, d: 0.05, vol: 0.12 });
   },
+  // caída a un vacío: silbido que baja ("fuuu") y un golpecito lejano
+  fall() {
+    tone({ type: 'sine', f0: 1150, f1: 140, a: 0.01, d: 0.62, vol: 0.3 });
+    tone({ type: 'triangle', f0: 1160, f1: 150, a: 0.01, d: 0.62, vol: 0.1, when: 0.015 });
+    noise({ f0: 2600, f1: 300, d: 0.55, vol: 0.12, q: 1.5 });
+    tone({ type: 'sine', f0: 90, f1: 45, d: 0.16, vol: 0.28, when: 0.66 });
+  },
+  // caja DROP: alarma corta al salir la sombra y golpazo al caer
+  dropWarn() {
+    [0, 0.16, 0.32].forEach((w) => tone({ type: 'square', f0: 880, f1: 660, d: 0.1, vol: 0.1, when: w }));
+  },
+  dropLand() {
+    noise({ f0: 420, f1: 70, d: 0.4, vol: 0.55, filter: 'lowpass' });
+    tone({ type: 'sine', f0: 110, f1: 38, d: 0.35, vol: 0.55 });
+    noise({ f0: 3200, d: 0.08, vol: 0.14, filter: 'highpass' });
+  },
   coins() {
     [988, 1318, 1568].forEach((f, i) => tone({ type: 'square', f0: f, d: 0.06, vol: 0.08, when: i * 0.07 }));
   },

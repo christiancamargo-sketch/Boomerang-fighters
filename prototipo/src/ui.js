@@ -22,14 +22,16 @@ const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 
 // Reto del Día: arena y "regla del día" salen de la semilla AAAAMMDD
 // (primero la arena, luego la regla, con el mismo Rng que la simulación).
-export function retoDelDia(date = new Date()) {
-  const seed = daySeed(date);
+// Spec v0.3 §E3: la arena sale de las 4, en este orden: callejon, museo, azotea, popup
+// (índice = rng.int(4)). Ej.: 20261123 → museo, 20261201 → azotea, 20270115 → popup.
+export function retoDeSemilla(seed) {
   const r = new Rng(seed);
   const ids = Object.keys(ARENAS);
   const arena = ids[r.int(ids.length)];
   const rule = DAILY_RULES[r.int(DAILY_RULES.length)];
   return { seed, arena, rule };
 }
+export function retoDelDia(date = new Date()) { return retoDeSemilla(daySeed(date)); }
 
 export class UI {
   constructor(game) {
@@ -62,7 +64,8 @@ export class UI {
 
   _outfit() {
     const e = progress().equipped;
-    return { shirt: e.shirt, species: e.species, cap: e.cap, arena: 'callejon' };
+    // spec v0.3 §C: el escenario de fondo del menú es la Pop-up Store INKCAP
+    return { shirt: e.shirt, species: e.species, cap: e.cap, arena: 'popup' };
   }
 
   _bindGlobal() {
@@ -308,6 +311,9 @@ export class UI {
     $('#r-mode').textContent = MODES[mode]?.name || '';
     $('#r-title').textContent = won ? '¡GANASTE!' : `GANÓ ${winner.name}`;
     $('#r-title').style.color = winner.color.css;
+    // spec v0.3 §C: el ganador levanta la taza INKCAP (trofeo) en el podio
+    $('#r-trophy').textContent = won ? '¡Te llevas la taza INKCAP!' : `${winner.name} se lleva la taza INKCAP`;
+    this.game.showPodium(winner);
     $('#r-col-pts').textContent = reta ? 'Vict.' : 'Pts';
     $('#r-table').innerHTML = ranked.map((p, i) => `
       <tr${p === winner ? ' class="win"' : ''}>
