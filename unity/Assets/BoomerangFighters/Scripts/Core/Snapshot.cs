@@ -6,6 +6,8 @@
 // "deltas" sin cambiar la simulación.
 // v2 (spec v0.2): modo, muerte súbita (muros), charcos, muros de tag,
 // lata caliente, fila de La Reta, gorras desviadas/marcas y racha.
+// v3 (spec v0.3): caja DROP pendiente (posición de la sombra y segundos
+// que faltan). Los vacíos no viajan: salen de la arena (ArenaDef.Pits).
 // ─────────────────────────────────────────────────────────────
 using System.Collections.Generic;
 using System.IO;
@@ -14,7 +16,7 @@ namespace BoomerangFighters.Core
 {
     public sealed partial class MatchSimulation
     {
-        public const byte SnapshotVersion = 2;
+        public const byte SnapshotVersion = 3;
 
         public void WriteSnapshot(BinaryWriter w)
         {
@@ -35,6 +37,11 @@ namespace BoomerangFighters.Core
 
             w.Write((byte)Arena.Hazards.Count);
             foreach (var hz in Arena.Hazards) { w.Write(hz.T); w.Write(hz.Z); w.Write((byte)hz.State); }
+
+            // caja DROP: sombra de aviso (si la hay)
+            w.Write(DropPending);
+            w.Write(DropPos.x); w.Write(DropPos.y);
+            w.Write(DropT);
 
             w.Write((byte)Players.Count);
             foreach (var p in Players)
@@ -134,6 +141,10 @@ namespace BoomerangFighters.Core
                 var st = (LaserState)r.ReadByte();
                 if (i < Arena.Hazards.Count) { Arena.Hazards[i].T = t; Arena.Hazards[i].Z = z; Arena.Hazards[i].State = st; }
             }
+
+            DropPending = r.ReadBoolean();
+            DropPos = new Vec2(r.ReadSingle(), r.ReadSingle());
+            DropT = r.ReadSingle();
 
             int pc = r.ReadByte();
             var capIds = new int[pc];

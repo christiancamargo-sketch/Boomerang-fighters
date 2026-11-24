@@ -9,7 +9,7 @@ export const GAME_INFO = {
   title: 'GORRAZO',
   brand: 'INKCAP',       // sello "by INKCAP" (el logo real va en src/marca/logo-inkcap.png)
   tagline: 'Lanza tu gorra, mancha a todos',
-  version: 'prototipo 0.2 · local',
+  version: 'prototipo 0.3 · local',
 };
 
 export const TUNING = {
@@ -80,6 +80,15 @@ export const TUNING = {
   tracking: { turn: 4.5, range: 11 }, // Tatuaje · Trazo
   puddle: { radius: 2.0, grow: 0.4 },  // Tinta derramada · Charco
   tagWall: { len: 2.5, thick: 0.4, life: 3, height: 1.25 }, // Grafiti · Muro de Tag
+  // Spec v0.3 §A: vacíos (huecos por donde te caes)
+  voids: {
+    shrink: 0.15,        // V1: el centro debe quedar dentro del rectángulo reducido 0.15 m por lado
+    creditTime: 2,       // V2: s en los que el KO se le acredita a quien te empujó/golpeó/desvió
+    spawnMargin: 0.8,    // V4: nada aparece dentro ni a menos de 0.8 m de un vacío
+    botEdge: 0.8,        // V5: los bots se alejan si quedan a menos de 0.8 m de una orilla
+  },
+  // Spec v0.3 §B4: caja DROP de la Pop-up Store
+  drop: { first: 8, every: 20, warn: 1.5, radius: 1.1 },
   hotCan: { fuseMin: 10, fuseMax: 20, passImmunity: 0.5 },  // modo Lata Caliente
   reta: { streakToWin: 3, maxRounds: 10 },                   // modo La Reta
   pickups: {
@@ -189,6 +198,7 @@ export const DAILY_RULES = [
 export const KO_LABELS = {
   gorrazo: '¡GORRAZO!', deRegreso: '¡DE REGRESO!', deBanda: '¡DE BANDA!', teLaRegreso: '¡TE LA REGRESO!',
   zaz: '¡ZAZ!', zap: '¡ZAP!', splash: '¡SPLASH!', tiraje: '¡TIRAJE!',
+  vacio: '¡AL VACÍO!', drop: '¡DROP!', // spec v0.3: caída a un vacío y caja DROP
 };
 
 // Progresión local (spec E): todo en el celular, sin servidor.

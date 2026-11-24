@@ -699,3 +699,286 @@ export function capLogoTexture(id) {
   _capLogoCache.set(id, t);
   return t;
 }
+
+
+// ─────────────────────────────────────────────────────────────
+// v0.3 · ESCENARIOS: texturas compartidas de vacíos, marca y utilería.
+// Todas se crean una sola vez (caché de módulo) para gastar poca memoria.
+// ─────────────────────────────────────────────────────────────
+export const FONTS = {
+  block: BLOCK_FONT,
+  tag: GRAFFITI_FONT,
+  // tipografía de rótulo de la tienda INKCAP (la misma de los botones del menú)
+  brand: '"Barlow Condensed", "Arial Narrow", Impact, system-ui, sans-serif',
+};
+export { makeCanvas, drawDrips, drawStar, TAG_WORDS };
+
+const LOGO_ASPECT = 364 / 1200;
+
+// Dibuja el logo INKCAP centrado en (cx, cy) con el ancho dado. Si no hay
+// archivo de logo, escribe "INKCAP" en tipografía de rótulo (no se inventa uno).
+export function drawLogo(ctx, cx, cy, width, color, { rot = 0, alpha = 1 } = {}) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  if (rot) ctx.rotate(rot);
+  ctx.globalAlpha *= alpha;
+  const mark = tintedLogo(color, Math.max(8, Math.round(Math.min(width, 1200))));
+  if (mark) {
+    const h = width * LOGO_ASPECT;
+    ctx.drawImage(mark, -width / 2, -h / 2, width, h);
+  } else {
+    ctx.fillStyle = color;
+    ctx.font = `${Math.round(width * 0.25)}px ${BLOCK_FONT}`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText('INKCAP', 0, 0);
+  }
+  ctx.restore();
+  return width * LOGO_ASPECT;
+}
+export const logoHeight = (width) => width * LOGO_ASPECT;
+
+// Pared interior de un vacío: clara en la orilla y negra hacia el fondo.
+// Solo tiene rasgos horizontales, así que se puede estirar a cualquier largo.
+const _pitCache = new Map();
+export function pitTexture(style = 'concreto') {
+  if (_pitCache.has(style)) return _pitCache.get(style);
+  const W = 16, H = 256;
+  const c = makeCanvas(W, H);
+  const ctx = c.getContext('2d');
+  const top = { concreto: '#6f6a78', neon: '#2a2440', edificio: '#8a5a48', tienda: '#5a5850' }[style] || '#6f6a78';
+  const g = ctx.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, top);
+  g.addColorStop(0.1, top);
+  g.addColorStop(0.45, '#17141d');
+  g.addColorStop(0.8, '#050407');
+  g.addColorStop(1, '#000000');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  // labio de la orilla + hiladas (ladrillo/colado) que dan escala a la profundidad
+  ctx.fillStyle = 'rgba(255,255,255,0.22)'; ctx.fillRect(0, 0, W, 5);
+  ctx.fillStyle = 'rgba(0,0,0,0.35)';
+  for (let y = 14; y < H * 0.7; y += style === 'edificio' ? 9 : 22) ctx.fillRect(0, y, W, 2);
+  if (style === 'neon') {
+    // líneas de luz de la instalación: se apagan hacia abajo
+    const cols = ['#00e5ff', '#ff2bd6', '#00e5ff', '#ff2bd6', '#00e5ff'];
+    cols.forEach((col, i) => {
+      ctx.globalAlpha = 0.95 - i * 0.17;
+      ctx.fillStyle = col; ctx.fillRect(0, 26 + i * 34, W, 5);
+      ctx.globalAlpha = (0.95 - i * 0.17) * 0.3;
+      ctx.fillRect(0, 20 + i * 34, W, 17);
+    });
+    ctx.globalAlpha = 1;
+  }
+  const t = toCanvasTexture(c);
+  _pitCache.set(style, t);
+  return t;
+}
+
+// Franjas de la orilla de los vacíos (amarillo/negro), repetibles a lo largo.
+let _rimTex = null;
+export function rimStripeTexture() {
+  if (_rimTex) return _rimTex;
+  const c = makeCanvas(64, 32);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#16141a'; ctx.fillRect(0, 0, 64, 32);
+  ctx.fillStyle = '#ffd400';
+  for (let i = -32; i < 96; i += 32) {
+    ctx.beginPath(); ctx.moveTo(i, 32); ctx.lineTo(i + 16, 32); ctx.lineTo(i + 48, 0); ctx.lineTo(i + 32, 0); ctx.fill();
+  }
+  _rimTex = toCanvasTexture(c, { repeat: [1, 1] });
+  return _rimTex;
+}
+
+// Degradado suave (blanco → transparente) para halos de neón, lámparas y avisos.
+let _glowTex = null, _softTex = null;
+export function glowStripTexture() {
+  if (_glowTex) return _glowTex;
+  const c = makeCanvas(8, 64);
+  const ctx = c.getContext('2d');
+  const g = ctx.createLinearGradient(0, 64, 0, 0); // v=0 (orilla interior) brillante → v=1 apagado
+  g.addColorStop(0, 'rgba(255,255,255,0.85)');
+  g.addColorStop(0.35, 'rgba(255,255,255,0.3)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 8, 64);
+  _glowTex = toCanvasTexture(c, { repeat: [1, 1] });
+  return _glowTex;
+}
+export function softDotTexture() {
+  if (_softTex) return _softTex;
+  const c = makeCanvas(64, 64);
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(32, 32, 1, 32, 32, 31);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.35, 'rgba(255,255,255,0.45)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
+  _softTex = toCanvasTexture(c);
+  return _softTex;
+}
+
+// Diseño de un artista como textura directa (cuadros del museo, paste-ups, cartel).
+export function artistTexture(a) {
+  if (!a || !a.imgEl) return null;
+  if (!a._tex) {
+    a._tex = new THREE.Texture(a.imgEl);
+    a._tex.colorSpace = THREE.SRGBColorSpace;
+    a._tex.anisotropy = 4;
+    a._tex.needsUpdate = true;
+  }
+  return a._tex;
+}
+
+// Playera colgada (tendedero de la azotea, racks de la tienda): silueta de
+// playera con la tela y el estampado reales del vestidor. Una textura por diseño.
+const _hangCache = new Map();
+function shirtPath(ctx) {
+  ctx.beginPath();
+  ctx.moveTo(90, 24);
+  ctx.quadraticCurveTo(128, 54, 166, 24);
+  ctx.lineTo(212, 42); ctx.lineTo(250, 98); ctx.lineTo(214, 122); ctx.lineTo(198, 100);
+  ctx.lineTo(198, 244); ctx.lineTo(58, 244); ctx.lineTo(58, 100);
+  ctx.lineTo(42, 122); ctx.lineTo(6, 98); ctx.lineTo(44, 42);
+  ctx.closePath();
+}
+export function hangingShirtTexture(id) {
+  if (_hangCache.has(id)) return _hangCache.get(id);
+  const def = SHIRT_DESIGNS[id] || SHIRT_DESIGNS['basica-blanca'];
+  const c = makeCanvas(256, 256);
+  const ctx = c.getContext('2d');
+  const fabric = def.fabric || SOLID_FABRIC[id] || null;
+  ctx.save();
+  shirtPath(ctx); ctx.clip();
+  if (fabric) { ctx.fillStyle = fabric; ctx.fillRect(0, 0, 256, 256); }
+  else def.paint(ctx, 256, 256, rng(id.length * 7919 + id.charCodeAt(0)));
+  if (def.print) {
+    const p = makeCanvas(256, 256);
+    def.print(p.getContext('2d'), 256, 256);
+    ctx.drawImage(p, 64, 62, 128, 128);
+  }
+  // pliegues y sombra de la tela
+  const sh = ctx.createLinearGradient(0, 0, 256, 0);
+  sh.addColorStop(0, 'rgba(0,0,0,0.28)'); sh.addColorStop(0.3, 'rgba(0,0,0,0)');
+  sh.addColorStop(0.7, 'rgba(255,255,255,0.06)'); sh.addColorStop(1, 'rgba(0,0,0,0.3)');
+  ctx.fillStyle = sh; ctx.fillRect(0, 0, 256, 256);
+  ctx.restore();
+  // contorno (look de caricatura) y cuello
+  ctx.lineWidth = 6; ctx.lineJoin = 'round'; ctx.strokeStyle = '#111';
+  shirtPath(ctx); ctx.stroke();
+  ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.beginPath(); ctx.moveTo(94, 30); ctx.quadraticCurveTo(128, 60, 162, 30); ctx.stroke();
+  // gancho
+  ctx.strokeStyle = '#d8d8d8'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(128, 30); ctx.lineTo(128, 10); ctx.arc(134, 10, 6, Math.PI, 0); ctx.stroke();
+  const t = toCanvasTexture(c);
+  _hangCache.set(id, t);
+  return t;
+}
+// Playeras reales de INKCAP para decorar (Basic + artistas); si no hay marca, las de ejemplo.
+export function brandShirtIds() {
+  const ids = Object.keys(SHIRT_DESIGNS).filter((k) => SHIRT_DESIGNS[k].url);
+  return ids.length ? ids : ['basica-negra', 'tinta-derramada', 'serigrafia-retro', 'neon-grafiti'];
+}
+export function brandCapIds() {
+  const ids = Object.keys(CAP_DESIGNS).filter((k) => CAP_DESIGNS[k].url);
+  return ids.length ? ids : ['inkcap-rotulo', 'cuadros', 'flamas', 'gotas-tinta', 'camuflaje', 'estrellas'];
+}
+
+// Etiqueta de las latas de técnica (spec v0.3 §C): negro tinta, banda blanca
+// con el ícono de la técnica y el logo INKCAP. Envuelve el cilindro de la lata.
+const _canCache = new Map();
+export function canLabelTexture(glyph) {
+  if (_canCache.has(glyph)) return _canCache.get(glyph);
+  const c = makeCanvas(256, 128);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = INK; ctx.fillRect(0, 0, 256, 128);
+  ctx.fillStyle = BONE; ctx.fillRect(0, 50, 256, 46);
+  for (const cx of [64, 192]) {
+    drawLogo(ctx, cx, 26, 104, BONE);
+    ctx.fillStyle = INK; ctx.font = `bold 40px ${BLOCK_FONT}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(glyph, cx, 75);
+  }
+  ctx.fillStyle = BONE;
+  for (let x = 6; x < 256; x += 20) ctx.fillRect(x, 108, 10, 5);
+  const t = toCanvasTexture(c);
+  _canCache.set(glyph, t);
+  return t;
+}
+
+// Taza INKCAP (trofeo del ganador y mostrador de la tienda): cerámica blanca con el logo.
+let _mugTex = null;
+export function mugTexture() {
+  if (_mugTex) return _mugTex;
+  const c = makeCanvas(256, 128);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#f6f4ee'; ctx.fillRect(0, 0, 256, 128);
+  drawLogo(ctx, 128, 62, 132, INK);
+  ctx.fillStyle = INK; ctx.fillRect(0, 118, 256, 4);
+  _mugTex = toCanvasTexture(c);
+  return _mugTex;
+}
+
+// Calcomanía / sticker con el logo (contenedores, tinaco, caja): tinta sobre papel
+// o solo la tinta sobre fondo transparente (paper = null).
+const _stickerCache = new Map();
+export function logoStickerTexture(ink = INK, paper = BONE) {
+  const key = `${ink}|${paper}`;
+  if (_stickerCache.has(key)) return _stickerCache.get(key);
+  const c = makeCanvas(256, 96);
+  const ctx = c.getContext('2d');
+  if (paper) {
+    ctx.fillStyle = paper;
+    ctx.beginPath(); ctx.roundRect ? ctx.roundRect(2, 2, 252, 92, 12) : ctx.rect(2, 2, 252, 92); ctx.fill();
+    ctx.lineWidth = 4; ctx.strokeStyle = '#111'; ctx.stroke();
+  }
+  drawLogo(ctx, 128, 48, paper ? 212 : 248, ink);
+  const t = toCanvasTexture(c);
+  _stickerCache.set(key, t);
+  return t;
+}
+
+// Caja de madera (tarima/huacal) para el callejón.
+let _crateTex = null;
+export function crateTexture() {
+  if (_crateTex) return _crateTex;
+  const c = makeCanvas(128, 128);
+  const ctx = c.getContext('2d');
+  const r = rng(77);
+  ctx.fillStyle = '#b98556'; ctx.fillRect(0, 0, 128, 128);
+  for (let i = 0; i < 5; i++) {
+    ctx.fillStyle = `rgba(${90 + r() * 40},${55 + r() * 25},${30 + r() * 15},0.35)`;
+    ctx.fillRect(0, i * 26, 128, 24);
+    ctx.fillStyle = 'rgba(40,22,10,0.55)'; ctx.fillRect(0, i * 26 + 24, 128, 2);
+  }
+  ctx.strokeStyle = '#7a4f2c'; ctx.lineWidth = 14; ctx.strokeRect(7, 7, 114, 114);
+  ctx.beginPath(); ctx.moveTo(10, 10); ctx.lineTo(118, 118); ctx.stroke();
+  ctx.strokeStyle = 'rgba(30,16,8,0.6)'; ctx.lineWidth = 2; ctx.strokeRect(1, 1, 126, 126); ctx.strokeRect(14, 14, 100, 100);
+  ctx.fillStyle = '#3b2616';
+  for (const [x, y] of [[8, 8], [120, 8], [8, 120], [120, 120]]) { ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI * 2); ctx.fill(); }
+  _crateTex = toCanvasTexture(c);
+  return _crateTex;
+}
+
+// Caja DROP de la Pop-up Store (peligro que cae del techo): cartón negro,
+// cinta neón de la tienda, la palabra DROP y el logo.
+let _dropTex = null;
+export function dropBoxTexture() {
+  if (_dropTex) return _dropTex;
+  const c = makeCanvas(256, 256);
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#17161a'; ctx.fillRect(0, 0, 256, 256);
+  ctx.fillStyle = '#ccff00'; ctx.fillRect(0, 108, 256, 40);
+  ctx.fillStyle = '#17161a'; ctx.font = `italic 900 40px ${FONTS.brand}`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText('DROP · DROP · DROP', 128, 129);
+  ctx.fillStyle = '#ccff00'; ctx.font = `92px ${BLOCK_FONT}`;
+  ctx.fillText('DROP', 128, 60);
+  drawLogo(ctx, 128, 200, 190, BONE);
+  ctx.strokeStyle = '#ccff00'; ctx.lineWidth = 8; ctx.strokeRect(4, 4, 248, 248);
+  _dropTex = toCanvasTexture(c);
+  return _dropTex;
+}
+
+// Limpia cachés que dependen de las fuentes o de la marca (se llama al recargar la marca).
+export function clearSceneTextureCaches() {
+  for (const m of [_hangCache, _canCache, _stickerCache]) { for (const t of m.values()) t.dispose(); m.clear(); }
+  for (const t of [_mugTex, _dropTex]) if (t) t.dispose();
+  _mugTex = null; _dropTex = null;
+}

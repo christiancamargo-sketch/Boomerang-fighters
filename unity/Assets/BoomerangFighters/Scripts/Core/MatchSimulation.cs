@@ -6,6 +6,8 @@
 // v0.2 (spec docs/diseno/spec-v0.2-local.md): doble KO = empate,
 // muerte súbita, empujón, "Te la regreso", Charco, Muro de Tag,
 // letreros de KO y los modos Lata Caliente, La Reta y Reto del Día.
+// v0.3 (spec docs/diseno/spec-v0.3-escenarios.md): vacíos (caída, crédito
+// del KO, gorras que regresan solas) y la caja DROP de la Pop-up Store.
 // ─────────────────────────────────────────────────────────────
 using System;
 using System.Collections.Generic;
@@ -64,12 +66,20 @@ namespace BoomerangFighters.Core
         public int HotCanImmuneId { get; private set; } = -1;
         public float HotCanImmuneT { get; private set; }
 
+        // Caja DROP (Pop-up Store): mientras hay sombra de aviso, dónde va a caer y cuánto falta
+        /// <summary>Hay una caja por caer: la vista dibuja la sombra en DropPos.</summary>
+        public bool DropPending { get; private set; }
+        public Vec2 DropPos { get; private set; }
+        /// <summary>Segundos que faltan para que caiga (solo vale con DropPending).</summary>
+        public float DropT { get; private set; }
+
         // La Reta: los 2 que pelean y la fila (en orden)
         public readonly int[] RetaFighters = { -1, -1 };
         public readonly List<int> RetaQueue = new List<int>();
 
         int _nextCapId = 1, _nextPickupId = 1, _lastCount = -1, _nextPuddleId = 1, _nextWallId = 1;
         float _pickupTimer, _roundStartTime, _simTime;
+        float _dropNext; // segundo de la ronda (RoundTime) en que cae la siguiente caja DROP
         int _graceTicks = -1; // A1: ticks desde que quedó 1 en pie (-1 = aún no)
         RoundEndReason _endReason;
 
@@ -81,8 +91,9 @@ namespace BoomerangFighters.Core
                 throw new ArgumentException("Lata Caliente es de 3 a 6 jugadores.");
             T = config.Tuning ?? Tuning.Default();
             if (T.Modes == null) T.Modes = new ModeTuning();
+            if (T.Pits == null) T.Pits = new PitTuning();
             Rules = config.Rules ?? new Rules();
-            Arena = new Arena(ArenaLibrary.Get(config.ArenaId));
+            Arena = new Arena(ArenaLibrary.Get(config.ArenaId)) { PitMargin = T.Pits.SafeMargin };
             Rng = new Rng(config.Seed);
             for (int i = 0; i < config.Slots.Count; i++)
             {
@@ -126,6 +137,8 @@ namespace BoomerangFighters.Core
             RoundTime = 0f;
             _graceTicks = -1;
             HotCanHolder = -1; HotCanTimer = 0f; HotCanImmuneId = -1; HotCanImmuneT = 0f;
+            DropPending = false; DropPos = Vec2.Zero; DropT = 0f;
+            _dropNext = Arena.Def.Drop != null ? Arena.Def.Drop.First : 0f;
             // barajar spawns de forma determinista
             var spawns = (Vec2[])Arena.Def.Spawns.Clone();
             for (int i = spawns.Length - 1; i > 0; i--)
@@ -175,6 +188,8 @@ namespace BoomerangFighters.Core
             p.ShoveCd = p.PushT = 0f;
             p.PushVel = Vec2.Zero;
             p.Benched = false;
+            p.LastHitBy = -1;
+            p.LastHitT = 0f;
         }
 
         // ── Paso principal ───────────────────────────────────
@@ -220,12 +235,14 @@ namespace BoomerangFighters.Core
                 {
                     if (PickupsOn) UpdatePickups(dt);
                     UpdateHotCan(dt);
+                    UpdateDropBox();
                 }
                 for (int i = 0; i < Players.Count; i++)
                 {
                     var p = Players[i];
                     if (p.Alive && Arena.LaserHits(p.Pos, T.Player.Radius)) Kill(p, null, KoCause.Zap);
                 }
+                PitFalls();
                 CheckRoundOver();
             }
 
@@ -258,6 +275,7 @@ namespace BoomerangFighters.Core
             var PT = T.Player;
             p.DashCd -= dt; p.MeleeCd -= dt; p.SlowT -= dt; p.SpawnInvuln -= dt; p.ShoveCd -= dt;
             if (p.MeleeT > 0f) p.MeleeT -= dt;
+            if (p.LastHitT > 0f) { p.LastHitT -= dt; if (p.LastHitT <= 0f) { p.LastHitT = 0f; p.LastHitBy = -1; } }
 
             var move = inp.Move;
             float mlen = move.Length;
@@ -443,6 +461,7 @@ namespace BoomerangFighters.Core
                 v.PushT = PT.ShoveTime;
                 v.PushVel = dir * (PT.ShoveDistance / PT.ShoveTime);
                 v.DashT = 0f;
+                Credit(v, p); // V2: si el empujón lo manda a un vacío, el KO es de quien empujó
                 Emit(SimEventType.Shove, p.Id, v.Id, v.Pos, extra: 1);
                 if (Mode == GameMode.LataCaliente && p.Id == HotCanHolder) PassHotCan(p, v); // el golpe sin gorra también pasa la lata
                 any = true;
@@ -632,6 +651,13 @@ namespace BoomerangFighters.Core
                     c.Pos += c.Vel * dt;
                     Arena.ResolveCircle(ref c.Pos, c.Radius);
                     c.Y = SimMath.Lerp(c.Y, 0.14f, MathF.Min(1f, dt * 10f));
+                    if (Arena.InPit(c.Pos))
+                    {
+                        // V3: la gorra en el piso que queda sobre un vacío regresa sola de inmediato
+                        // (si su dueño ya cayó, se pierde en el hueco)
+                        if (owner.Alive) Recall(c); else c.Mode = CapMode.Dead;
+                        break;
+                    }
                     if (owner.Alive && c.T > CT.GroundAutoReturn) { Recall(c); break; } // nadie se queda desarmado para siempre
                     if (!owner.Alive)
                     {
@@ -715,6 +741,7 @@ namespace BoomerangFighters.Core
                     if (v.Shield)
                     {
                         v.Shield = false;
+                        Credit(v, c.Deflected && c.DeflectBy >= 0 ? Players[c.DeflectBy] : owner);
                         Emit(SimEventType.ShieldBreak, v.Id, c.OwnerId, v.Pos);
                         Drop(c, (c.Pos - v.Pos).Normalized * 6f);
                         break;
@@ -766,6 +793,7 @@ namespace BoomerangFighters.Core
                     if (d.Length > PT.MeleeRange + PT.Radius * 0.5f) continue;
                     if (MathF.Abs(SimMath.AngleDelta(fa, d.Angle)) > PT.MeleeArc / 2f) continue;
                     p.MeleeHitMask |= 1u << v.Id;
+                    Credit(v, p); // V2: le pegó con un golpe (aunque no lo noquee: escudo o Lata Caliente)
                     if (Mode == GameMode.LataCaliente)
                     {
                         if (p.Id == HotCanHolder) PassHotCan(p, v);
@@ -782,6 +810,7 @@ namespace BoomerangFighters.Core
                     var d = c.Pos - p.Pos;
                     if (d.Length > PT.MeleeRange + 0.5f) continue;
                     if (MathF.Abs(SimMath.AngleDelta(fa, d.Angle)) > PT.MeleeArc / 2f + 0.3f) continue;
+                    Credit(Players[c.OwnerId], p); // V2: le desvió la gorra
                     if (Rules.DeflectReturn && !c.Ghost && Mode != GameMode.LataCaliente && Players[c.OwnerId].Alive)
                     {
                         DeflectReturn(c, p);
@@ -839,7 +868,7 @@ namespace BoomerangFighters.Core
                 {
                     if (v.Id == pd.OwnerId || !v.Alive || v.SpawnInvuln > 0f) continue;
                     if (Vec2.Distance(v.Pos, pd.Pos) >= CT.ExplosionRadius) continue;
-                    if (v.Shield) { v.Shield = false; Emit(SimEventType.ShieldBreak, v.Id, pd.OwnerId, v.Pos); continue; }
+                    if (v.Shield) { v.Shield = false; Credit(v, owner); Emit(SimEventType.ShieldBreak, v.Id, pd.OwnerId, v.Pos); continue; }
                     Kill(v, owner, KoCause.Splash);
                 }
                 Puddles.RemoveAt(i);
@@ -861,6 +890,79 @@ namespace BoomerangFighters.Core
             Arena.TagWalls.Add(w);
             c.Power = PowerUp.None;
             Emit(SimEventType.TagWall, c.OwnerId, pos: w.Pos, value: w.Dir.Angle);
+        }
+
+        // ── Vacíos (spec v0.3, sección A) ────────────────────
+        /// <summary>V2: "by" tocó a "v" (empujón, golpe, desvío o gorra contra su escudo). Dura T.Pits.CreditTime.</summary>
+        void Credit(PlayerState v, PlayerState by)
+        {
+            if (v == null || by == null || v == by || !v.Alive) return;
+            v.LastHitBy = by.Id;
+            v.LastHitT = T.Pits.CreditTime;
+        }
+
+        /// <summary>
+        /// V1: quien queda con el centro sobre un vacío (reducido 0.15 m por lado) sin dash ni empujón, cae.
+        /// Un dash o un empujón pueden cruzarlo; si terminan encima, cae. V6: aplica igual si lo empujó
+        /// un muro de muerte súbita. V2: el KO es de quien lo tocó en los últimos 2 s (si nadie, de nadie).
+        /// </summary>
+        void PitFalls()
+        {
+            if (Phase != MatchPhase.Play || !Arena.HasPits) return;
+            float inset = T.Pits.FallInset;
+            for (int i = 0; i < Players.Count; i++)
+            {
+                var p = Players[i];
+                if (!p.Alive || p.DashT > 0f || p.PushT > 0f) continue;
+                if (!Arena.InPit(p.Pos, inset)) continue;
+                var by = p.LastHitT > 0f && p.LastHitBy >= 0 && p.LastHitBy < Players.Count ? Players[p.LastHitBy] : null;
+                Kill(p, by, KoCause.Vacio);
+            }
+        }
+
+        // ── Caja DROP (Pop-up Store) ─────────────────────────
+        /// <summary>
+        /// Cada "Every" segundos de ronda (la primera a los "First") cae una caja en un punto libre al azar:
+        /// sombra de aviso "Warn" segundos antes (DropWarn), luego cae (DropLand), noquea a quien esté a
+        /// "Radius" o menos (el Parche bloquea) y deja una lata de técnica.
+        /// </summary>
+        void UpdateDropBox()
+        {
+            var D = Arena.Def.Drop;
+            if (D == null) return;
+            if (!DropPending)
+            {
+                if (RoundTime < _dropNext - D.Warn) return;
+                DropPending = true;
+                DropPos = Arena.RandomFreePoint(ref Rng, 1.0f); // respeta obstáculos y vacíos (V4)
+                DropT = MathF.Max(0f, _dropNext - RoundTime);
+                Emit(SimEventType.DropWarn, pos: DropPos, value: DropT);
+                return;
+            }
+            DropT = MathF.Max(0f, _dropNext - RoundTime);
+            if (RoundTime < _dropNext) return;
+
+            // ¡cae!
+            var pos = DropPos;
+            DropPending = false;
+            DropT = 0f;
+            _dropNext += D.Every;
+            var leaves = PickupsOn ? (PowerUp)(1 + Rng.NextInt(PowerUpInfo.Count)) : PowerUp.None;
+            Emit(SimEventType.DropLand, pos: pos, value: D.Radius, extra: (byte)leaves);
+            foreach (var v in Players)
+            {
+                if (!v.Alive || v.SpawnInvuln > 0f) continue;
+                if (Vec2.Distance(v.Pos, pos) > D.Radius) continue;
+                if (v.Shield) { v.Shield = false; Emit(SimEventType.ShieldBreak, v.Id, -1, v.Pos); continue; }
+                Kill(v, null, KoCause.Drop);
+            }
+            if (leaves != PowerUp.None)
+            {
+                // la caja se rompe y deja una lata de técnica en ese lugar (aunque ya haya el máximo de latas)
+                var pu = new Pickup { Id = _nextPickupId++, Type = leaves, Pos = pos };
+                Pickups.Add(pu);
+                Emit(SimEventType.PickupSpawn, pos: pos, extra: (byte)leaves, value: pu.Id);
+            }
         }
 
         // ── Muerte súbita (A2) ───────────────────────────────
@@ -1093,13 +1195,14 @@ namespace BoomerangFighters.Core
             void MixI(int i) { unchecked { h ^= (uint)i; h *= 16777619u; } }
             MixI(Tick); MixI((int)Phase); MixI(Round); MixI((int)Rng.State);
             Mix(RoundTime); Mix(Arena.WallInset); MixI(HotCanHolder); Mix(HotCanTimer);
+            MixI(DropPending ? 1 : 0); Mix(DropPos.x); Mix(DropPos.y); Mix(DropT);
             MixI(RetaFighters[0]); MixI(RetaFighters[1]);
             foreach (var id in RetaQueue) MixI(id);
             foreach (var p in Players)
             {
                 Mix(p.Pos.x); Mix(p.Pos.y); Mix(p.Vel.x); Mix(p.Vel.y);
                 MixI(p.Alive ? 1 : 0); MixI(p.HasCap ? 1 : 0); MixI(p.Score); MixI((int)p.Power);
-                Mix(p.PushT); MixI(p.Streak);
+                Mix(p.PushT); MixI(p.Streak); MixI(p.LastHitBy); Mix(p.LastHitT);
             }
             foreach (var c in Caps) { Mix(c.Pos.x); Mix(c.Pos.y); MixI((int)c.Mode); Mix(c.DeflectT); }
             foreach (var pu in Pickups) { Mix(pu.Pos.x); Mix(pu.Pos.y); MixI((int)pu.Type); }

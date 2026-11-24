@@ -5,6 +5,9 @@
 //   dotnet run -- lan "Sala de prueba" → abre una sala LAN con bots (otros pueden unirse)
 // Demuestra que la simulación corre igual sin Unity: es la base del
 // servidor dedicado de la Etapa 3.
+// v0.3: el balance cubre las 4 arenas y reporta las caídas al vacío
+// (con y sin crédito) y los KOs de la caja DROP contra las metas de la spec
+// (rondas de 10–25 s, vacío 5–25 % de los KOs, vacío sin crédito < 15 %).
 // ─────────────────────────────────────────────────────────────
 using System;
 using System.Collections.Generic;
@@ -38,7 +41,8 @@ static class Program
             var causes = new Dictionary<KoCause, int>();
             var powers = new Dictionary<PowerUp, int>();
             int clanks = 0, deflects = 0, returns = 0, shoves = 0, shields = 0, ties = 0, tiesDoubleKo = 0, tiesTime = 0, sudden = 0, hotPasses = 0;
-            var wins = new int[nBots];
+            int pitCredit = 0, pitNoCredit = 0, dropKos = 0, dropBoxes = 0;
+            var wins = new int[nBots]; long dbgAlive = 0, dbgPush = 0, dbgNear = 0;
             for (int g = 0; g < matches; g++)
             {
                 var cfg = new MatchConfig { ArenaId = arena.Id, Seed = (uint)(1000 + g * 7919), PointsToWin = 5, Mode = gameMode };
@@ -50,11 +54,17 @@ static class Program
                 {
                     for (int i = 0; i < nBots; i++) inputs[i] = bots[i].Think(MatchSimulation.Dt);
                     sim.Step(inputs);
+                    if (sim.Phase == MatchPhase.Play) foreach (var pl in sim.Players) { if (!pl.Alive) continue; dbgAlive++; bool pz = false; for (int k = 0; k < 16 && !pz; k++) pz = sim.Arena.InPit(pl.Pos + Vec2.FromAngle(k * MathF.PI / 8f) * 2.5f, 0.23f); if (pz) dbgPush++; if (sim.Arena.PitDistance(pl.Pos) < 5f) dbgNear++; }
                     foreach (var e in sim.Events)
                     {
                         switch (e.Type)
                         {
-                            case SimEventType.KO: causes[(KoCause)e.Extra] = causes.GetValueOrDefault((KoCause)e.Extra) + 1; break;
+                            case SimEventType.KO:
+                                causes[(KoCause)e.Extra] = causes.GetValueOrDefault((KoCause)e.Extra) + 1;
+                                if ((KoCause)e.Extra == KoCause.Vacio) { if (e.B >= 0) pitCredit++; else pitNoCredit++; }
+                                if ((KoCause)e.Extra == KoCause.Drop) dropKos++;
+                                break;
+                            case SimEventType.DropLand: dropBoxes++; break;
                             case SimEventType.PickupTaken: powers[(PowerUp)e.Extra] = powers.GetValueOrDefault((PowerUp)e.Extra) + 1; break;
                             case SimEventType.Clank when e.Extra == 2: clanks++; break;
                             case SimEventType.Deflect: deflects++; if (e.Extra == 1) returns++; break;
@@ -77,13 +87,20 @@ static class Program
             rounds.Sort();
             float p50 = rounds[rounds.Count / 2], p90 = rounds[(int)(rounds.Count * 0.9)];
             Console.WriteLine($"── {arena.Name}");
+            Console.WriteLine($"   DBGZ pushable {100.0*dbgPush/dbgAlive:0.0} % near5 {100.0*dbgNear/dbgAlive:0.0} %");
             int totalKos = causes.Values.Sum();
             Console.WriteLine($"   rondas: {rounds.Count}  promedio {rounds.Average():0.0}s  mediana {p50:0.0}s  p90 {p90:0.0}s");
             Console.WriteLine($"   muerte súbita: {sudden} rondas ({100.0 * sudden / rounds.Count:0.0} %) · empates {ties} ({100.0 * ties / rounds.Count:0.0} %: doble KO {tiesDoubleKo}, tiempo {tiesTime})");
             Console.WriteLine($"   KOs por causa: {string.Join(", ", causes.OrderByDescending(k => k.Value).Select(k => $"{k.Key} {k.Value} ({100.0 * k.Value / Math.Max(1, totalKos):0}%)"))}");
+            double avg = rounds.Average(), pitPct = 100.0 * (pitCredit + pitNoCredit) / Math.Max(1, totalKos), soloPct = 100.0 * pitNoCredit / Math.Max(1, totalKos);
+            Console.WriteLine($"   vacíos: {pitCredit + pitNoCredit} de {totalKos} KOs ({pitPct:0.0} %) · con crédito {pitCredit} ({100.0 * pitCredit / Math.Max(1, totalKos):0.0} %) · sin crédito {pitNoCredit} ({soloPct:0.0} %)"
+                + (arena.Drop != null ? $" · caja DROP: {dropKos} KOs ({100.0 * dropKos / Math.Max(1, totalKos):0.0} %) en {dropBoxes} cajas" : ""));
+            if (gameMode == GameMode.Gorrazo)
+                Console.WriteLine($"   metas v0.3: ronda 10–25 s {(avg >= 10 && avg <= 25 ? "OK" : "FUERA")} · vacío 5–25 % {(pitPct >= 5 && pitPct <= 25 ? "OK" : "FUERA")} · vacío sin crédito < 15 % {(soloPct < 15 ? "OK" : "FUERA")}");
             Console.WriteLine($"   power-ups tomados: {string.Join(", ", powers.OrderByDescending(k => k.Value).Select(k => $"{PowerUpInfo.Name(k.Key)} {k.Value}"))}");
             Console.WriteLine($"   clanks {clanks} · desvíos {deflects} (te la regreso {returns}) · empujones {shoves} · escudos rotos {shields}{(gameMode == GameMode.LataCaliente ? $" · pases de lata {hotPasses}" : "")} · victorias por asiento {string.Join("/", wins)}\n");
         }
+        Console.WriteLine($"DBG capless ticks {BotBrain.DbgCapless} near5 {BotBrain.DbgNear5} found {BotBrain.DbgFound} inPlace {BotBrain.DbgInPlace} totalTicks*4 {totalTicks*4}");
         double simSeconds = totalTicks / (double)MatchSimulation.TickRate;
         Console.WriteLine($"Simulados {simSeconds / 60:0} min de juego en {sw.Elapsed.TotalSeconds:0.0} s reales (×{simSeconds / sw.Elapsed.TotalSeconds:0} tiempo real).");
         return 0;

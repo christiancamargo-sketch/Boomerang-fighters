@@ -129,6 +129,12 @@ namespace BoomerangFighters.Core
         public bool Benched;
         /// <summary>La Reta: victorias seguidas.</summary>
         public int Streak;
+        /// <summary>
+        /// V2 (vacíos): quién lo empujó, golpeó o desvió por última vez (-1 = nadie) y cuántos segundos
+        /// le quedan a ese "crédito". Si cae a un vacío con el crédito vivo, el KO es de ese jugador.
+        /// </summary>
+        public int LastHitBy = -1;
+        public float LastHitT;
 
         public float Charge01(Tuning t) => Charging ? SimMath.Clamp01(ChargeT / t.Cap.ChargeTime) : 0f;
     }
@@ -193,6 +199,9 @@ namespace BoomerangFighters.Core
         HotCanPass,        // Lata Caliente: A = nuevo portador, B = quien la pasó (-1 = se pegó al azar), Value = segundos que le quedan
         HotCanExplode,     // Lata Caliente: A = portador que queda fuera
         RetaNext,          // La Reta: A = quien entra a pelear, B = quien se va a la fila
+        // ── v0.3 ──
+        DropWarn,          // caja DROP: sombra de aviso en Pos (Value = segundos que faltan para que caiga)
+        DropLand,          // caja DROP: cayó en Pos (Value = radio que noquea, Extra = lata de técnica que deja; 0 = ninguna)
     }
 
     /// <summary>Causa detallada del KO (A8). Cada una tiene su letrero.</summary>
@@ -206,6 +215,9 @@ namespace BoomerangFighters.Core
         Zap = 5,         // láser
         Splash = 6,      // Charco (y la Lata Caliente al explotar)
         Tiraje = 7,      // copia de Serigrafía
+        // ── v0.3 (¡solo se agregan al FINAL!) ──
+        Vacio = 8,       // cayó a un vacío (con crédito si alguien lo empujó/golpeó/desvió en los últimos 2 s)
+        Drop = 9,        // le cayó encima la caja DROP (Pop-up Store)
     }
 
     /// <summary>Por qué terminó una ronda (va en Extra del evento RoundEnd).</summary>
@@ -227,6 +239,8 @@ namespace BoomerangFighters.Core
                 case KoCause.Zap: return "¡ZAP!";
                 case KoCause.Splash: return "¡SPLASH!";
                 case KoCause.Tiraje: return "¡TIRAJE!";
+                case KoCause.Vacio: return "¡AL VACÍO!";
+                case KoCause.Drop: return "¡DROP!";
                 default: return "";
             }
         }

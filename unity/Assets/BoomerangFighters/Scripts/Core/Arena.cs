@@ -1,6 +1,9 @@
 // ─────────────────────────────────────────────────────────────
 // Escenarios: datos + consultas de colisión + peligros (láser).
 // Mismos datos que el prototipo web (prototipo/src/arena.js).
+// v0.3 (spec docs/diseno/spec-v0.3-escenarios.md): escenarios más
+// grandes (26 × 16), VACÍOS (huecos por donde te caes), el escenario
+// nuevo "Pop-up Store INKCAP" y su peligro: la caja DROP.
 // ─────────────────────────────────────────────────────────────
 using System;
 using System.Collections.Generic;
@@ -17,6 +20,29 @@ namespace BoomerangFighters.Core
         public bool BlocksCaps => h >= 1f;
     }
 
+    /// <summary>
+    /// Vacío: hueco rectangular en el piso (centro, ancho, fondo). Quien queda encima sin dash
+    /// ni empujón, cae. Las gorras en vuelo pasan por encima.
+    /// </summary>
+    [Serializable]
+    public struct Pit
+    {
+        public float x, y, w, d;
+        public string Kind;
+        public Pit(float x, float y, float w, float d, string kind) { this.x = x; this.y = y; this.w = w; this.d = d; Kind = kind; }
+
+        /// <summary>¿El punto está dentro del hueco? "inset" lo reduce por cada lado (V1: 0.15 m de perdón).</summary>
+        public bool Contains(Vec2 p, float inset = 0f)
+            => MathF.Abs(p.x - x) < w / 2f - inset && MathF.Abs(p.y - y) < d / 2f - inset;
+
+        /// <summary>Punto del hueco más cercano a "p" (el mismo "p" si está dentro).</summary>
+        public Vec2 Closest(Vec2 p)
+            => new Vec2(SimMath.Clamp(p.x, x - w / 2f, x + w / 2f), SimMath.Clamp(p.y, y - d / 2f, y + d / 2f));
+
+        /// <summary>Distancia del punto a la orilla del hueco (0 si está dentro).</summary>
+        public float Distance(Vec2 p) => Vec2.Distance(p, Closest(p));
+    }
+
     public enum HazardType : byte { Laser = 0 }
 
     [Serializable]
@@ -24,6 +50,20 @@ namespace BoomerangFighters.Core
     {
         public HazardType Type;
         public float Period, Warn, Active, Offset;
+    }
+
+    /// <summary>
+    /// Peligro "caja DROP" (Pop-up Store): cae del techo cada "Every" segundos de ronda (la primera
+    /// a los "First"), con una sombra de aviso "Warn" segundos antes. Noquea a quien esté a "Radius"
+    /// o menos del punto de caída y deja una lata de técnica.
+    /// </summary>
+    [Serializable]
+    public sealed class DropBoxDef
+    {
+        public float First = 8f;
+        public float Every = 20f;
+        public float Warn = 1.5f;
+        public float Radius = 1.1f;
     }
 
     [Serializable]
@@ -34,55 +74,89 @@ namespace BoomerangFighters.Core
         public Box[] Obstacles;
         public Vec2[] Spawns;
         public HazardDef[] Hazards = Array.Empty<HazardDef>();
+        /// <summary>Vacíos del escenario (v0.3).</summary>
+        public Pit[] Pits = Array.Empty<Pit>();
+        /// <summary>Caja DROP (null = en este escenario no cae nada del techo).</summary>
+        public DropBoxDef Drop;
     }
 
     public static class ArenaLibrary
     {
         static Box B(float x, float y, float w, float d, float h, string k) => new Box(x, y, w, d, h, k);
+        static Pit P(float x, float y, float w, float d, string k) => new Pit(x, y, w, d, k);
         static Vec2 V(float x, float y) => new Vec2(x, y);
+        static float PX = float.Parse(System.Environment.GetEnvironmentVariable("PX") ?? "9.6"), PY = float.Parse(System.Environment.GetEnvironmentVariable("PY") ?? "4.6");
 
+        // B1 · Callejón Grafiti (26 × 16): coladeras abiertas y zanjas de obra
         public static readonly ArenaDef Callejon = new ArenaDef
         {
-            Id = "callejon", Name = "Callejón Grafiti", Description = "Contenedores, cajas y muros llenos de tags.",
-            Width = 23f, Depth = 14f,
+            Id = "callejon", Name = "Callejón Grafiti", Description = "Contenedores, cajas, coladeras abiertas y muros llenos de tags.",
+            Width = 26f, Depth = 16f,
             Obstacles = new[]
             {
-                B(-5.6f, -2.8f, 2.4f, 1.2f, 1.3f, "dumpster"), B(5.6f, 2.8f, 2.4f, 1.2f, 1.3f, "dumpster"),
-                B(0f, 0f, 1.1f, 1.1f, 1.1f, "crate"),
-                B(-2.0f, 3.9f, 1.0f, 1.0f, 0.7f, "crate-low"), B(2.0f, -3.9f, 1.0f, 1.0f, 0.7f, "crate-low"),
-                B(-9.0f, 3.1f, 0.9f, 2.2f, 1.2f, "crate"), B(9.0f, -3.1f, 0.9f, 2.2f, 1.2f, "crate"),
+                B(-6.5f, -3.2f, 2.6f, 1.3f, 1.4f, "dumpster"), B(6.5f, 3.2f, 2.6f, 1.3f, 1.4f, "dumpster"),
+                B(0f, 0f, 1.2f, 1.2f, 1.2f, "crate"),
+                B(-2.4f, 4.6f, 1.0f, 1.0f, 0.7f, "crate-low"), B(2.4f, -4.6f, 1.0f, 1.0f, 0.7f, "crate-low"),
+                B(-10.2f, 3.8f, 1.0f, 2.4f, 1.3f, "crate"), B(10.2f, -3.8f, 1.0f, 2.4f, 1.3f, "crate"),
             },
-            Spawns = new[] { V(-9f, -4.8f), V(9f, 4.8f), V(9f, -4.8f), V(-9f, 4.8f), V(0f, -5.4f), V(0f, 5.4f) },
+            Pits = new[]
+            {
+                P(-5.6f, 4.9f, 1.4f, 1.4f, "coladera"), P(5.6f, -4.9f, 1.4f, 1.4f, "coladera"),
+                P(0f, 3.0f, 3.4f, 0.9f, "zanja"), P(0f, -3.0f, 3.4f, 0.9f, "zanja"),
+            },
+            Spawns = new[] { V(-11f, -6.3f), V(11f, 6.3f), V(11f, -6.3f), V(-11f, 6.3f), V(-3.5f, 0f), V(3.5f, 0f) },
         };
 
+        // B2 · Museo de Arte · "Exposición INKCAP" (26 × 16): fosos de instalación + láseres
         public static readonly ArenaDef Museo = new ArenaDef
         {
-            Id = "museo", Name = "Museo de Arte", Description = "Pedestales con esculturas y láseres de seguridad.",
-            Width = 23f, Depth = 14f,
+            Id = "museo", Name = "Museo de Arte", Description = "Exposición INKCAP: pedestales, fosos de instalación y láseres de seguridad.",
+            Width = 26f, Depth = 16f,
             Obstacles = new[]
             {
-                B(-4.9f, -2.5f, 1.3f, 1.3f, 1.4f, "pedestal"), B(4.9f, 2.5f, 1.3f, 1.3f, 1.4f, "pedestal"),
-                B(-4.9f, 2.5f, 1.3f, 1.3f, 1.4f, "pedestal"), B(4.9f, -2.5f, 1.3f, 1.3f, 1.4f, "pedestal"),
-                B(0f, 0f, 3.0f, 0.7f, 0.55f, "bench"),
+                B(-5.5f, -2.8f, 1.4f, 1.4f, 1.5f, "pedestal"), B(5.5f, 2.8f, 1.4f, 1.4f, 1.5f, "pedestal"),
+                B(-5.5f, 2.8f, 1.4f, 1.4f, 1.5f, "pedestal"), B(5.5f, -2.8f, 1.4f, 1.4f, 1.5f, "pedestal"),
+                B(0f, 0f, 3.2f, 0.7f, 0.55f, "bench"),
             },
-            Spawns = new[] { V(-9.3f, -4.8f), V(9.3f, 4.8f), V(9.3f, -4.8f), V(-9.3f, 4.8f), V(0f, -5.4f), V(0f, 5.4f) },
+            Pits = new[] { P(-9.2f, 0f, 1.8f, 3.2f, "foso"), P(9.2f, 0f, 1.8f, 3.2f, "foso") },
+            Spawns = new[] { V(-11f, -6.3f), V(11f, 6.3f), V(11f, -6.3f), V(-11f, 6.3f), V(0f, -6.6f), V(0f, 6.6f) },
             Hazards = new[] { new HazardDef { Type = HazardType.Laser, Period = 9f, Warn = 1.4f, Active = 1.6f, Offset = 4f } },
         };
 
+        // B3 · Azotea CDMX (26 × 16): dos azoteas con el hueco entre edificios y un puente de tablón de 3 m
         public static readonly ArenaDef Azotea = new ArenaDef
         {
-            Id = "azotea", Name = "Azotea CDMX", Description = "Tinacos, macetas y tendederos al atardecer.",
-            Width = 22f, Depth = 13.5f,
+            Id = "azotea", Name = "Azotea CDMX", Description = "Dos azoteas, un tablón de puente y el hueco entre edificios.",
+            Width = 26f, Depth = 16f,
             Obstacles = new[]
             {
-                B(-5.4f, 0f, 1.5f, 1.5f, 1.5f, "tinaco"), B(5.4f, 0f, 1.5f, 1.5f, 1.5f, "tinaco"),
-                B(0f, -3.2f, 2.8f, 0.5f, 0.6f, "planter"), B(0f, 3.2f, 2.8f, 0.5f, 0.6f, "planter"),
-                B(-8.6f, -4.1f, 1.1f, 1.1f, 1.0f, "gas"), B(8.6f, 4.1f, 1.1f, 1.1f, 1.0f, "gas"),
+                B(-6.5f, 0f, 1.6f, 1.6f, 1.8f, "tinaco"), B(6.5f, 0f, 1.6f, 1.6f, 1.8f, "tinaco"),
+                B(-6.5f, -4.4f, 2.6f, 0.5f, 0.6f, "planter"), B(6.5f, 4.4f, 2.6f, 0.5f, 0.6f, "planter"),
+                B(-10.8f, -5.6f, 1.1f, 1.1f, 1.0f, "gas"), B(10.8f, 5.6f, 1.1f, 1.1f, 1.0f, "gas"),
             },
-            Spawns = new[] { V(-8.8f, 0f), V(8.8f, 0f), V(0f, -5.3f), V(0f, 5.3f), V(-8.2f, 4.9f), V(8.2f, -4.9f) },
+            Pits = new[] { P(0f, -4.75f, 1.8f, 6.5f, "hueco"), P(0f, 4.75f, 1.8f, 6.5f, "hueco") },
+            Spawns = new[] { V(-10f, 0f), V(10f, 0f), V(-4f, -6.2f), V(4f, 6.2f), V(-4f, 6.2f), V(4f, -6.2f) },
         };
 
-        public static readonly ArenaDef[] All = { Callejon, Museo, Azotea };
+        // B4 · Pop-up Store INKCAP (24 × 15): racks de playeras, mesa de gorras, escaleras al sótano y la caja DROP.
+        // Los spawns 3 y 4 van en (6.5, −5.5) y (−6.5, 5.5): en las esquinas caerían dentro de las escaleras (V4).
+        public static readonly ArenaDef Popup = new ArenaDef
+        {
+            Id = "popup", Name = "Pop-up Store INKCAP", Description = "Racks de playeras, escaleras al sótano y la caja DROP que cae del techo.",
+            Width = 24f, Depth = 15f,
+            Obstacles = new[]
+            {
+                B(-5f, -3.2f, 2.6f, 0.6f, 1.4f, "rack"), B(5f, 3.2f, 2.6f, 0.6f, 1.4f, "rack"),
+                B(-5f, 3.2f, 2.6f, 0.6f, 1.4f, "rack"), B(5f, -3.2f, 2.6f, 0.6f, 1.4f, "rack"),
+                B(0f, 0f, 2.2f, 1.2f, 0.9f, "table"), // mesa de gorras: baja, las gorras pasan
+            },
+            Pits = new[] { P(-PX, PY, 1.6f, 2.2f, "escalera"), P(PX, -PY, 1.6f, 2.2f, "escalera") },
+            Spawns = new[] { V(-9.5f, -5.5f), V(9.5f, 5.5f), V(6.5f, -5.5f), V(-6.5f, 5.5f), V(0f, -5.8f), V(0f, 5.8f) },
+            Drop = new DropBoxDef { First = 8f, Every = 20f, Warn = 1.5f, Radius = 1.1f },
+        };
+
+        /// <summary>El orden importa: "Aleatorio" y el Reto del Día eligen por índice.</summary>
+        public static readonly ArenaDef[] All = { Callejon, Museo, Azotea, Popup };
 
         public static ArenaDef Get(string id)
         {
@@ -122,6 +196,68 @@ namespace BoomerangFighters.Core
         public float HalfD => Def.Depth * 0.5f;
         /// <summary>Media anchura jugable (se encoge en muerte súbita).</summary>
         public float PlayHalfW => HalfW - WallInset;
+
+        /// <summary>V4: nada aparece dentro de un vacío ni a menos de esta distancia de su orilla.</summary>
+        public float PitMargin = 0.8f;
+        public bool HasPits => Def.Pits.Length > 0;
+
+        /// <summary>
+        /// ¿El punto está sobre un vacío? "inset" reduce cada hueco por lado: V1 usa 0.15 m para los
+        /// jugadores (perdón en la orilla); las gorras en el piso usan el rectángulo completo (0).
+        /// </summary>
+        public bool InPit(Vec2 p, float inset = 0f)
+        {
+            foreach (var pit in Def.Pits) if (pit.Contains(p, inset)) return true;
+            return false;
+        }
+
+        /// <summary>Distancia a la orilla del vacío más cercano (0 si está dentro; enorme si no hay vacíos).</summary>
+        public float PitDistance(Vec2 p)
+        {
+            float best = float.MaxValue;
+            foreach (var pit in Def.Pits)
+            {
+                float d = pit.Distance(p);
+                if (d < best) best = d;
+            }
+            return best;
+        }
+
+        public bool NearPit(Vec2 p, float margin) => PitDistance(p) < margin;
+
+        /// <summary>¿El tramo de "a" a "b" pasa por encima de un vacío (agrandado "pad" por lado)?</summary>
+        public bool SegmentCrossesPit(Vec2 a, Vec2 b, float pad = 0f)
+        {
+            foreach (var pit in Def.Pits)
+                if (SegmentHitsBox(a, b, new Box(pit.x, pit.y, pit.w, pit.d, 0f, pit.Kind), pad)) return true;
+            return false;
+        }
+
+        /// <summary>
+        /// Para los bots (V5): empuje que aleja de las orillas que estén a menos de "margin".
+        /// Crece de 0 (a "margin" de la orilla) a 1 (en la orilla); dentro del hueco apunta a la salida más corta.
+        /// </summary>
+        public Vec2 PitRepulsion(Vec2 p, float margin)
+        {
+            var push = Vec2.Zero;
+            foreach (var pit in Def.Pits)
+            {
+                var c = pit.Closest(p);
+                var dv = p - c;
+                float d = dv.Length;
+                if (d >= margin) continue;
+                if (d > 1e-4f) { push += dv / d * ((margin - d) / margin); continue; }
+                // está encima: salir por el lado más cercano
+                float left = p.x - (pit.x - pit.w / 2f), right = (pit.x + pit.w / 2f) - p.x;
+                float top = p.y - (pit.y - pit.d / 2f), bot = (pit.y + pit.d / 2f) - p.y;
+                float m = MathF.Min(MathF.Min(left, right), MathF.Min(top, bot));
+                if (m == left) push.x -= 1f;
+                else if (m == right) push.x += 1f;
+                else if (m == top) push.y -= 1f;
+                else push.y += 1f;
+            }
+            return push;
+        }
 
         /// <summary>El obstáculo quedó del otro lado de un muro de muerte súbita (ya no cuenta).</summary>
         bool BeyondWalls(in Box o)
@@ -319,15 +455,21 @@ namespace BoomerangFighters.Core
             return true;
         }
 
+        /// <summary>¿Cabe un círculo de radio "r" sin tocar muros, obstáculos ni vacíos? (los vacíos cuentan como obstáculo)</summary>
         public bool IsFree(Vec2 p, float r)
         {
             if (MathF.Abs(p.x) > PlayHalfW - r || MathF.Abs(p.y) > HalfD - r) return false;
             foreach (var o in Def.Obstacles)
                 if (!BeyondWalls(o) && MathF.Abs(p.x - o.x) < o.w / 2f + r && MathF.Abs(p.y - o.y) < o.d / 2f + r) return false;
+            foreach (var pit in Def.Pits)
+                if (MathF.Abs(p.x - pit.x) < pit.w / 2f + r && MathF.Abs(p.y - pit.y) < pit.d / 2f + r) return false;
             foreach (var w in TagWalls)
                 if (CircleVsWall(p, r, w, out _, out _)) return false;
             return true;
         }
+
+        /// <summary>Punto válido para que aparezca algo (lata, caja DROP): libre y a más de PitMargin de cualquier vacío (V4).</summary>
+        public bool IsSpawnable(Vec2 p, float r) => IsFree(p, r) && !NearPit(p, PitMargin);
 
         public Vec2 RandomFreePoint(ref Rng rng, float r)
         {
@@ -335,7 +477,19 @@ namespace BoomerangFighters.Core
             for (int i = 0; i < 60; i++)
             {
                 var p = new Vec2((rng.NextFloat() - 0.5f) * usableW, (rng.NextFloat() - 0.5f) * (Def.Depth - 3f));
-                if (IsFree(p, r)) return p;
+                if (IsSpawnable(p, r)) return p;
+            }
+            // casi imposible llegar aquí: barrido fijo de la zona jugable (nunca devolver un punto sobre un vacío)
+            for (int pass = 0; pass < 2; pass++)
+            {
+                float rr = pass == 0 ? r : 0.3f;
+                for (float y = 0f; y <= HalfD - 1f; y += 0.5f)
+                    for (float x = 0f; x <= PlayHalfW - 1f; x += 0.5f)
+                        for (int q = 0; q < 4; q++)
+                        {
+                            var p = new Vec2((q & 1) == 0 ? x : -x, (q & 2) == 0 ? y : -y);
+                            if (IsSpawnable(p, rr)) return p;
+                        }
             }
             return new Vec2(0f, 2f);
         }

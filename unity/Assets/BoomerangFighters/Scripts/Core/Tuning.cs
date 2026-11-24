@@ -106,6 +106,15 @@ namespace BoomerangFighters.Core
         public int RetoRoundPoints = 300;
     }
 
+    /// <summary>Vacíos (spec v0.3, sección A).</summary>
+    [Serializable]
+    public sealed class PitTuning
+    {
+        public float FallInset = 0.15f;   // V1: el centro debe entrar 0.15 m al hueco para caer (perdón en la orilla)
+        public float CreditTime = 2f;     // V2: si te empujaron/golpearon/desviaron hace menos de 2 s, el KO es de esa persona
+        public float SafeMargin = 0.8f;   // V4/V5: nada aparece a menos de 0.8 m de un vacío; los bots se alejan de esa franja
+    }
+
     [Serializable]
     public sealed class PickupTuning
     {
@@ -127,6 +136,7 @@ namespace BoomerangFighters.Core
         public RoundTuning Round = new RoundTuning();
         public PickupTuning Pickups = new PickupTuning();
         public ModeTuning Modes = new ModeTuning();
+        public PitTuning Pits = new PitTuning();
 
         public static Tuning Default() => new Tuning();
     }

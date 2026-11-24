@@ -1,6 +1,9 @@
 // ─────────────────────────────────────────────────────────────
-// PROTOCOLO de red (v2) — C# puro, sin UnityEngine.
+// PROTOCOLO de red (v3) — C# puro, sin UnityEngine.
 // v2: el StartMatch lleva el modo de juego y los interruptores de reglas.
+// v3 (spec v0.3): snapshot v3 (caja DROP), eventos DropWarn/DropLand, causas de KO
+// Vacio/Drop y escenarios nuevos (medidas y vacíos). Un cliente viejo no puede
+// jugar con un host nuevo: por eso sube la versión y el host lo rechaza al saludar.
 // Mismo formato para LAN (UDP directo) y, más adelante, online
 // (Relay / servidor dedicado): solo cambia el ITransport.
 // ─────────────────────────────────────────────────────────────
@@ -12,7 +15,7 @@ namespace BoomerangFighters.Net
 {
     public static class Protocol
     {
-        public const byte Version = 2;
+        public const byte Version = 3;
         public const int DefaultGamePort = 7777;
         public const int DefaultBeaconPort = 47777;
         public const string BeaconMagic = "BFLAN";
