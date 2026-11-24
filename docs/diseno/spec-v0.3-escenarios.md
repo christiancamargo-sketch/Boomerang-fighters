@@ -45,7 +45,7 @@ Tamaño base **26 × 16 m** (antes 23 × 14). La cámara se ajusta sola. Obstác
 - **Obstáculos:** racks de playeras (−5, −3.2, 2.6, 0.6, h 1.4), (5, 3.2, 2.6, 0.6, h 1.4), (−5, 3.2, 2.6, 0.6, h 1.4), (5, −3.2, 2.6, 0.6, h 1.4); mesa de gorras (0, 0, 2.2, 1.2, h 0.9) (baja: las gorras pasan).
 - **Vacíos:** escalera al sótano (−9.6, 4.6, 1.6, 2.2) y (9.6, −4.6, 1.6, 2.2).
 - **Peligro nuevo: caja DROP.** Cada **20 s** (primera a los 8 s) cae una caja del techo en un punto libre al azar (Rng): **sombra de aviso 1.5 s** (evento `DropWarn` con posición), luego cae (`DropLand`): noquea a quien esté a **≤ 1.1 m** (causa `Drop`, letrero **¡DROP!**, el escudo bloquea), y deja una **lata de técnica** en ese lugar. La caja desaparece al caer.
-- **Spawns:** (−9.5, −5.5), (9.5, 5.5), (9.5, −5.5), (−9.5, 5.5), (0, −5.8), (0, 5.8).
+- **Spawns:** (−9.5, −5.5), (9.5, 5.5), (6.5, −5.5), (−6.5, 5.5), (0, −5.8), (0, 5.8). *(Corregido: dos spawns caían dentro de los vacíos de la escalera.)*
 - **INKCAP:** pared con el logo grande e iluminado; racks con las playeras reales (Basic y artistas); pared de gorras con las 6 snapbacks; mostrador con la taza INKCAP; cartel "ESTRENOS".
 
 ## C. Más INKCAP en todo el juego
@@ -57,3 +57,11 @@ Tamaño base **26 × 16 m** (antes 23 × 14). La cámara se ajusta sola. Obstác
 ## D. Balance y pruebas
 - Correr el balance (`HeadlessHost balance`) en los 4 escenarios: rondas de 10–25 s promedio, y caídas al vacío entre 5 % y 25 % de los KOs.
 - Pruebas nuevas: caer al vacío, cruzar con dash, crédito por empujón, gorra en el piso dentro de un vacío regresa, nada aparece en vacíos, caja DROP (aviso, KO, deja lata), bots que no se caen solos (en 30 partidas de bots, < 15 % de KOs por vacío sin crédito), determinismo con el escenario nuevo, snapshot con la caja DROP.
+
+## E. Aclaraciones (24-nov-2026, acordadas durante la implementación)
+
+Valen igual para el núcleo C#, el prototipo web y Unity:
+
+1. **Caja DROP, tiempos:** se cuentan sobre el reloj de la ronda en juego (desde el "¡YA!"). La caja **cae** a los 8 s, 28 s, 48 s…; el aviso `DropWarn` sale 1.5 s antes (6.5 s, 26.5 s…). Noquea a distancia centro a centro ≤ 1.1 m. En Lata Caliente, o con las latas apagadas, cae y noquea pero no deja lata.
+2. **V3, gorra en el piso:** regresa sola si su **centro** está dentro del rectángulo completo del vacío. La reducción de 0.15 m por lado es solo para jugadores (V1).
+3. **Reto del Día:** la arena del día sale de las 4 arenas en este orden: callejon, museo, azotea, popup (`All[rng.NextInt(4)]`). Ejemplos: 20261123 → museo, 20261201 → azotea, 20270115 → popup, 20260228 → azotea. La regla del día no cambia.
