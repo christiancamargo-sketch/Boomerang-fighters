@@ -442,10 +442,10 @@ export class Toy {
     if (s.cheer) {
       // festejo: las dos manos arriba (sosteniendo el trofeo si lo trae)
       const b = Math.sin(this.t * 6.5) * 0.035;
-      this.handL.position.set(-0.24, 1.86 + b, 0.1);
-      this.handR.position.set(0.24, 1.86 + b, 0.1);
+      this.handL.position.set(-0.25, 1.92 + b, 0.12);
+      this.handR.position.set(0.25, 1.92 + b, 0.12);
       if (this.trophy) {
-        this.trophy.position.set(0, 2.02 + b, 0.1);
+        this.trophy.position.set(0, 2.09 + b, 0.12);
         this.trophy.rotation.z = Math.sin(this.t * 3.2) * 0.12;
       }
     }

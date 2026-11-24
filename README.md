@@ -13,8 +13,8 @@ Un *party brawler* para celular de 2 a 6 jugadores. Muñequitos estilo art toy p
 | [`docs/investigacion/`](docs/investigacion/) | 8 reportes con fuentes (Boomerang Fu, competidores y casos de éxito, motor, multijugador, backend, monetización, legal, arte) + síntesis. Los precios y las políticas se re-verificaron | Completo |
 | [`docs/diseno/`](docs/diseno/) | 3 propuestas de concepto independientes y la evaluación de 2 jueces | Completo |
 | [`docs/concepto/`](docs/concepto/) | Página visual del concepto para compartir con el equipo | Publicada |
-| [`prototipo/`](prototipo/) | Prototipo jugable en el navegador (Three.js): 3 arenas, bots, 6 latas, táctil, XP, premio diario, vestidor y canje simulado | Jugable |
-| [`unity/`](unity/) | Núcleo del juego para Unity 6: simulación C# determinista, bots, red local por Wi‑Fi, vistas greybox y 21 pruebas automáticas | Base para el desarrollo |
+| [`prototipo/`](prototipo/) | Prototipo jugable en el navegador (Three.js): 4 arenas con vacíos y marca INKCAP (callejón, museo, azotea y Pop-up Store con caja DROP), 4 modos, bots, 6 latas, táctil, XP, premio diario y vestidor con gorras y playeras reales | Jugable |
+| [`unity/`](unity/) | Núcleo del juego para Unity 6: simulación C# determinista, bots, red local por Wi‑Fi, vistas greybox y 112 pruebas automáticas | Base para el desarrollo |
 
 ## Probarlo
 

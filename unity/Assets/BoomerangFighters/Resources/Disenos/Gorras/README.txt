@@ -12,18 +12,24 @@ Formato
   el PNG lo reemplaza.
 
 Reglas de la gorra (spec v0.2 §E)
-- El diseño va SOLO en la COPA. La silueta y el tamaño de la gorra nunca
-  cambian (es el proyectil: todos deben leerla igual).
+- La silueta y el tamaño de la gorra-proyectil nunca cambian (todos deben
+  leerla igual). La gorra puesta en la cabeza se dibuja un poco más grande.
 - El color del jugador vive en el aro del piso, el rastro y el botón de la
   copa; no hace falta pintarlo en el diseño.
-- La visera de una gorra con diseño sale negro tinta.
 
-Cómo se ve
-- En el greybox la copa es media esfera: la imagen la envuelve, así que lo
-  importante (rótulo, ícono) debe ir en la franja central del PNG.
+Cómo se ve (v0.3)
+- Fondo de UN color liso: ese color es la COPA (y, un poco más oscuro, la
+  visera). El logo o dibujo va SOLO en el panel de enfrente: el juego
+  encuentra la zona del dibujo y la recorta para ese panel.
+- Las gorras INKCAP de esta carpeta son plantillas de 512 × 512 con el logo
+  repetido en x ≈ 128 y x ≈ 384: se usa el de la izquierda. Un PNG con un
+  solo logo o dibujo al centro también funciona.
 
 Precio
 - Cada diseño de artista cuesta 150 Gotas (DesignLibrary.ArtistCapPrice).
 
-Ajustes de importación recomendados en Unity
-- Texture Type: Default · Wrap Mode: Repeat · Max Size: 1024
+Ajustes de importación en Unity
+- Los pone solo Scripts/Editor/BrandTextureImport.cs la primera vez que
+  se importa el PNG (Wrap Mode: Repeat · Non-Power of 2: None). NO hace
+  falta activar Read/Write.
+- Texture Type: Default · Max Size: 1024

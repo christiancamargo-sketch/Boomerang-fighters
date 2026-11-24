@@ -201,7 +201,9 @@ namespace BoomerangFighters.Core
             else if (me.HasCap)
             {
                 var pu = NearestPickup(me.Pos, out float pud);
-                if (pu.HasValue && pud < 6f && (tgt == null || pud < Vec2.Distance(me.Pos, tgt.Pos)))
+                // (si hay un vacío de por medio no es "seguro": mejor seguir peleando; igual que la web)
+                if (pu.HasValue && pud < 6f && (tgt == null || pud < Vec2.Distance(me.Pos, tgt.Pos))
+                    && !_sim.Arena.SegmentCrossesPit(me.Pos, pu.Value, 0.3f))
                 {
                     move += (pu.Value - me.Pos).Normalized;
                 }

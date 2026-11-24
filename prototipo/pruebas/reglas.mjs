@@ -370,6 +370,37 @@ await test('V2 también dan crédito: desviar su gorra y romperle el escudo con 
   return { ok: desvio && C2.alive && !C2.shield && C2.lastHitBy === A2, info: `desvío ${desvio}, escudo roto con crédito ${C2.lastHitBy === A2}` };
 });
 
+await test('V2 el charco contra un escudo también da crédito; el KO de la caja DROP no es de nadie', () => {
+  const [A, B, C] = T.start(3); const g = T.g;
+  T.place(A, 4, 0); T.place(B, 5.5, 0); T.place(C, 9, 6);
+  B.shield = true;
+  A.hasCap = false; A.cap.launch(4, 0, 1e-4, 0, 9, 'tinta');
+  g.startPuddle(A.cap, 4, 0);
+  T.ticks(26);
+  return { ok: B.alive && !B.shield && B.lastHitBy === A && B.lastHitT > 1.5, info: `escudo roto ${!B.shield}, crédito a A ${B.lastHitBy === A}` };
+});
+
+await test('A3/V1 medidas exactas: el empujón mueve 2.5 m en 12 ticks (sin dash mientras te empujan) y el dash dura 10 ticks = 3.0 m', () => {
+  const [A, B, C] = T.start(3); const g = T.g;
+  T.place(A, 3, 1.5, 1, 0); T.place(B, 4.5, 1.5); T.place(C, -9, -6.5, 1, 0);
+  A.hasCap = false; A.cap.state = 'ground'; A.cap.pos = { x: 9, z: -6.5 }; A.cap.t = 0;
+  T.pad(A, { meleePressed: true, aim: true, ax: 1, az: 0 }); T.pad(C, { dashPressed: true, mx: 1, mz: 0 });
+  g.step(1 / 60, true);
+  // (el primer tick ya contó: C empezó su dash en él; B recibe el empujón al final de ese tick)
+  let pushTicks = B.pushT > 1e-6 ? 0 : -99, dashTicks = 1, dashEnd = null, noDash = true;
+  for (let i = 0; i < 20; i++) {
+    const pushing = B.pushT > 1e-6, dashing = C.dashT > 0;
+    T.pad(B, { dashPressed: true, mx: 0, mz: 1 }); // intenta hacer dash mientras lo empujan
+    g.step(1 / 60, true);
+    for (const p of g.players) T.pad(p, {});
+    if (pushing) { pushTicks++; if (B.dashT > 0) noDash = false; }
+    if (dashing) { dashTicks++; dashEnd = C.pos.x; } // posición al terminar el último tick de dash (sin el patinón)
+    if (!pushing && pushTicks === 12 && !dashing) break;
+  }
+  const moved = B.pos.x - 4.5, dash = dashEnd - (-9);
+  return { ok: pushTicks === 12 && Math.abs(moved - 2.5) < 1e-6 && noDash && dashTicks === 10 && Math.abs(dash - 3.0) < 1e-6, info: `empujón ${moved.toFixed(3)} m en ${pushTicks} ticks (dash bloqueado ${noDash}); dash ${dash.toFixed(3)} m en ${dashTicks} ticks` };
+});
+
 await test('V3 las gorras en vuelo pasan por encima de los vacíos', () => {
   const [A, B, C] = T.start(3); const g = T.g;
   T.place(A, -8, 1.2); T.place(B, 9, 6); T.place(C, 9, -6.5);
@@ -437,6 +468,47 @@ await test('V5 bots: en 20 s parados junto a los vacíos (sin rivales cerca) nin
   g.fastForward(60 * 20);
   const solos = T.ev('KO').filter((k) => k.cause === 'vacio' && k.killer === -1).length;
   return { ok: solos === 0, info: `KOs: ${T.ev('KO').map((k) => k.cause).join(', ') || 'ninguno'} · caídas sin crédito: ${solos}` };
+});
+
+await test('V5 bots: sin gorra, van por el rival al que un empujón dejaría dentro de un vacío (y se llevan el KO)', () => {
+  // se toma la clase del bot de una partida de bots y se le pone a A; B es un jugador quieto
+  T.start(2, { bots: true });
+  const Bot = T.g.players[0].controller.constructor;
+  const [A, B, C] = T.start(3, { rules: { suddenDeath: false } }); const g = T.g;
+  // B quieto a 2.5 m (un empujón) del centro de la coladera (5.6, -4.9); A sin gorra a 5 m, en diagonal
+  T.place(A, 2.5, 1.5, 1, 0); T.place(B, 5.6, -2.4); T.place(C, -9, 6.5);
+  A.hasCap = false; A.cap.state = 'ground'; A.cap.pos = { x: -11, z: -6.5 }; A.cap.vel = { x: 0, z: 0 }; A.cap.t = 0;
+  A.controller = new Bot(g, A, 'normal');
+  let shoved = false;
+  for (let i = 0; i < 60 * 4 && B.alive; i++) { A.cap.t = 0; g.fastForward(1); if (T.ev('Shove').length) shoved = true; }
+  const ko = T.ev('KO')[0];
+  return { ok: shoved && !B.alive && ko && ko.cause === 'vacio' && ko.killer === 0 && A.alive, info: `empujón ${shoved}, KO ${JSON.stringify(ko)}, A vivo ${A.alive}` };
+});
+
+await test('V5 bots: salen de la sombra de la caja DROP', () => {
+  const ps = T.start(4, { arenaId: 'popup', bots: true, rules: { suddenDeath: false, shove: false } }); const g = T.g;
+  g.fastForward(60 * 6.4);
+  let n = 0, hits = 0;
+  for (let k = 0; k < 6; k++) {
+    // se fuerza el aviso justo donde está parado un bot vivo
+    const b = g.players.find((p) => p.alive);
+    if (!b) break;
+    g.drop = { x: b.pos.x, z: b.pos.z, landAt: g.playT + 1.5, warnAt: g.playT };
+    const before = T.ev('KO').filter((e) => e.cause === 'drop').length;
+    for (let i = 0; i < 100 && g.drop && g.state === 'play'; i++) g.fastForward(1);
+    n++; hits += T.ev('KO').filter((e) => e.cause === 'drop').length - before;
+    if (g.state !== 'play') break;
+  }
+  return { ok: n >= 1 && hits === 0, info: `${n} cajas sobre un bot, ${hits} KOs por DROP` };
+});
+
+await test('V3 fuera de la ronda en juego los vacíos son sólidos: en la cuenta regresiva nadie cae', () => {
+  const [A, B] = T.start(2); const g = T.g;
+  g.nextRound(); // cuenta regresiva de la ronda 2
+  T.place(A, -5.6, 4.9); T.place(B, 9, 0);
+  const st = g.state;
+  T.ticks(10);
+  return { ok: st === 'countdown' && A.alive && !g.arena.voidAt(A.pos.x, A.pos.z, 0) && T.ev('KO').length === 0, info: `estado ${st}, A en (${A.pos.x.toFixed(2)}, ${A.pos.z.toFixed(2)})` };
 });
 
 await test('V6 muerte súbita: el muro que avanza puede empujarte a un vacío', () => {
@@ -509,6 +581,30 @@ await test('B4 caja DROP: la siguiente cae a los 28 s (aviso a los 26.5 s); en L
   for (let i = 0; i < 100 && !T.ev('DropLand').length; i++) T.ticks(1);
   const sinLata = T.ev('DropLand').length === 1 && g.pickups.length === 0;
   return { ok: una && Math.abs(w2 - 26.5) < 0.02 && Math.abs(t2 - 28) < 0.02 && sinLata, info: `2.º aviso ${w2} s, 2.ª caída ${t2} s · Lata Caliente: cayó sin lata ${sinLata}` };
+});
+
+await test('B4 caja DROP: si la ronda se decide con la sombra ya puesta ya no cae; cada ronda reinicia el reloj; deja lata aunque haya el máximo', () => {
+  const [A, B, C] = T.start(3, { arenaId: 'popup', rules: { suddenDeath: false } }); const g = T.g;
+  T.ticks(60 * 6.6);
+  const aviso = T.ev('DropWarn').length === 1 && !!g.drop;
+  g.kill(B, A, 'zaz'); g.kill(C, A, 'zaz'); // ronda decidida con la sombra puesta
+  T.ticks(60 * 2.6);
+  const noCayo = T.ev('DropLand').length === 0;
+  // ronda 2: el reloj empieza de nuevo (aviso a los 6.5 s, caída a los 8 s)
+  if (g.state === 'between') g.nextRound();
+  for (let i = 0; i < 200 && g.state === 'countdown'; i++) T.ticks(1);
+  for (const p of g.players) p.spawnInvuln = 0;
+  g.pickupTimer = 999;
+  T.ticks(60 * 6.4);
+  const sinAviso2 = T.ev('DropWarn').length === 1;
+  T.ticks(12);
+  const w = T.ev('DropWarn')[1];
+  // ya hay el máximo de latas (2): la de la caja se deja de todos modos
+  g.players.forEach((p, k) => T.place(p, w && w.x > 0 ? -8 : 8, k * 2.5 - 2.5));
+  g._spawnPickup(); g._spawnPickup(); // (aparecen lejos de los jugadores)
+  let t2 = null, antes = 0;
+  for (let i = 0; i < 120 && t2 === null; i++) { antes = g.pickups.length; T.ticks(1); if (T.ev('DropLand').length) t2 = +g.playT.toFixed(2); }
+  return { ok: aviso && noCayo && sinAviso2 && !!w && Math.abs(t2 - 8) < 0.02 && antes >= g.pickupsMax && g.pickups.length === antes + 1, info: `ronda 1: aviso ${aviso}, no cayó ${noCayo} · ronda 2: cae a los ${t2} s, latas ${antes} → ${g.pickups.length} (máx ${g.pickupsMax})` };
 });
 
 await test('B los otros escenarios no tienen caja DROP', () => {

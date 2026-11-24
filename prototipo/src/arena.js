@@ -9,14 +9,15 @@
 // así que al final de la partida el escenario queda como un mural.
 // ─────────────────────────────────────────────────────────────
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { toon } from './characters.js';
 import {
   rng, drawSplat, toCanvasTexture, stencilTexture, hazardStripeTexture,
-  pitTexture, rimStripeTexture, glowStripTexture, softDotTexture, dropBoxTexture,
+  pitTexture, rimStripeTexture, glowStripTexture, dropBoxTexture,
 } from './textures.js';
 import { TUNING } from './config.js';
 import { ESCENAS, buildObstacle } from './escenografia.js';
-import { GEO, HIDDEN } from './geo.js';
+import { GEO, faceBox, pitBox } from './geo.js';
 
 export { GEO };
 
@@ -112,7 +113,7 @@ export const ARENAS = {
       box(5, 3.2, 2.6, 0.6, 1.4, 'rack'),
       box(-5, 3.2, 2.6, 0.6, 1.4, 'rack'),
       box(5, -3.2, 2.6, 0.6, 1.4, 'rack'),
-      box(0, 0, 2.2, 1.2, 0.9, 'mesa'), // baja: las gorras pasan
+      box(0, 0, 2.2, 1.2, 0.9, 'table'), // mesa de gorras: baja, las gorras pasan
     ],
     voids: [
       hole(-9.6, 4.6, 1.6, 2.2, 'escalera'),
@@ -154,6 +155,7 @@ export class Arena {
     this._buildObstacles();
     this._buildHazards();
     this._buildDecor();
+    this._mergeStatic();
     this._buildSuddenDeathWalls();
   }
 
@@ -170,8 +172,13 @@ export class Arena {
 
   tmat(tex, color = 0xffffff) { return this.own(toon(color, tex)); }
 
-  // material sin iluminación (luces, neón, letreros iluminados)
-  glow(color, opts = {}) { return this.own(new THREE.MeshBasicMaterial({ color, fog: false, ...opts })); }
+  // material sin iluminación (luces, neón, letreros iluminados); uno por color si no lleva opciones
+  glow(color, opts = null) {
+    if (opts) return this.own(new THREE.MeshBasicMaterial({ color, fog: false, ...opts }));
+    this._glows ||= new Map();
+    if (!this._glows.has(color)) this._glows.set(color, this.own(new THREE.MeshBasicMaterial({ color, fog: false })));
+    return this._glows.get(color);
+  }
 
   add(geo, material, x = 0, y = 0, z = 0, sx = 1, sy = 1, sz = 1, parent = this.group) {
     const m = new THREE.Mesh(geo, typeof material === 'number' ? this.mat(material) : material);
@@ -330,7 +337,7 @@ export class Arena {
   pit(x, z, w, d, depth, style) {
     if (!this._pitMats.has(style)) this._pitMats.set(style, this.own(new THREE.MeshBasicMaterial({ map: pitTexture(style), side: THREE.BackSide, fog: false })));
     const side = this._pitMats.get(style);
-    const m = new THREE.Mesh(GEO.box, [side, side, HIDDEN, this._pitBottom, side, side]);
+    const m = new THREE.Mesh(pitBox(), [side, this._pitBottom]);
     m.scale.set(w, depth, d);
     m.position.set(x, -depth / 2, z);
     this.group.add(m);
@@ -374,7 +381,7 @@ export class Arena {
     const faceTex = this.signCanvas(wm, wl.back, 2048, 256, (ctx, cw, ch) => this.sc.paintBackWall(ctx, cw, ch, this, (x) => (x + wm / 2) * 100));
     // backUnlit: el muro se ve "iluminado por dentro" (la pared del logo de la tienda)
     const face = wl.backUnlit ? this.glow(0xffffff, { map: faceTex }) : this.tmat(faceTex);
-    const back = new THREE.Mesh(GEO.box, [cap, cap, top, cap, face, cap]);
+    const back = new THREE.Mesh(faceBox(4), [face, top, cap]);
     back.scale.set(wm, wl.back, t);
     back.position.set(0, wl.back / 2, -H / 2 - t / 2);
     this.group.add(back);
@@ -387,8 +394,7 @@ export class Arena {
         tx.wrapS = THREE.RepeatWrapping; tx.repeat.set(H / 13, 1); tx.needsUpdate = true;
         inner = this.tmat(tx);
       }
-      const mats = sx < 0 ? [inner, cap, top, cap, cap, cap] : [cap, inner, top, cap, cap, cap];
-      const m = new THREE.Mesh(GEO.box, mats);
+      const m = new THREE.Mesh(faceBox(sx < 0 ? 0 : 1), [inner, top, cap]);
       m.scale.set(t, wl.side, H);
       m.position.set(sx * (W / 2 + t / 2), wl.side / 2, 0);
       this.group.add(m);
@@ -422,6 +428,7 @@ export class Arena {
         const glow = new THREE.Mesh(GEO.flat, this.own(new THREE.MeshBasicMaterial({ color: 0xff1744, transparent: true, opacity: 0, depthWrite: false, fog: false })));
         glow.scale.set(this.w, 1, 0.9); glow.position.y = 0.04;
         const g = new THREE.Group();
+        g.userData.dyn = true; // se mueve y parpadea: no se funde con lo estático
         g.add(beam, glow);
         for (const sx of [-1, 1]) {
           const e = this.box(0.4, 1.3, 0.5, 0x37474f, sx * (this.w / 2 + 0.12), 0, 0, g);
@@ -524,6 +531,44 @@ export class Arena {
   _buildDecor() {
     this.sc.decor?.(this);
     this.group.traverse((o) => { if (o.userData.spin) this.spinners.push(o); });
+  }
+
+  // Todas las mallas ESTÁTICAS que comparten material se funden en una sola: el escenario
+  // pasa de ~150 llamadas de dibujo a unas cuantas decenas. Lo animado (userData.spin / dyn)
+  // y las mallas con varios materiales (muros, vacíos) se quedan como están.
+  _mergeStatic() {
+    this.group.updateMatrixWorld(true);
+    const inv = new THREE.Matrix4().copy(this.group.matrixWorld).invert();
+    const buckets = new Map();
+    const visit = (o) => {
+      if (o.userData.spin || o.userData.dyn || !o.visible) return;
+      if (o.isMesh && !o.isInstancedMesh && !Array.isArray(o.material) && o.children.length === 0) {
+        const a = o.geometry.attributes;
+        if (a.position && a.normal && a.uv) {
+          if (!buckets.has(o.material)) buckets.set(o.material, []);
+          buckets.get(o.material).push(o);
+        }
+      }
+      for (const c of [...o.children]) visit(c);
+    };
+    visit(this.group);
+    const m4 = new THREE.Matrix4();
+    for (const [material, list] of buckets) {
+      if (list.length < 2) continue;
+      const geos = list.map((o) => {
+        const g = o.geometry.index ? o.geometry.toNonIndexed() : o.geometry.clone();
+        for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal' && k !== 'uv') g.deleteAttribute(k);
+        g.applyMatrix4(m4.multiplyMatrices(inv, o.matrixWorld));
+        return g;
+      });
+      const merged = mergeGeometries(geos, false);
+      for (const g of geos) g.dispose();
+      if (!merged) continue;
+      const mesh = new THREE.Mesh(this.own(merged), material);
+      mesh.renderOrder = Math.max(...list.map((o) => o.renderOrder));
+      for (const o of list) o.parent.remove(o);
+      this.group.add(mesh);
+    }
   }
 
   animate(dt) {
@@ -636,6 +681,25 @@ export class Arena {
       } else best = { v, d, ax: dx / d, az: dz / d };
     }
     return best;
+  }
+
+  // Para los bots (V5): empuje que aleja de las orillas que estén a menos de `margin`.
+  // Crece de 0 (a `margin` de la orilla) a 1 (en la orilla); dentro del hueco apunta a la salida más corta.
+  voidRepulsion(x, z, margin) {
+    const push = { x: 0, z: 0 };
+    for (const v of this.voids) {
+      const cx = Math.max(v.x - v.w / 2, Math.min(x, v.x + v.w / 2));
+      const cz = Math.max(v.z - v.d / 2, Math.min(z, v.z + v.d / 2));
+      const dx = x - cx, dz = z - cz;
+      const d = Math.hypot(dx, dz);
+      if (d >= margin) continue;
+      if (d > 1e-4) { const k = (margin - d) / margin / d; push.x += dx * k; push.z += dz * k; continue; }
+      const left = x - (v.x - v.w / 2), right = (v.x + v.w / 2) - x;
+      const top = z - (v.z - v.d / 2), bot = (v.z + v.d / 2) - z;
+      const m = Math.min(left, right, top, bot);
+      if (m === left) push.x -= 1; else if (m === right) push.x += 1; else if (m === top) push.z -= 1; else push.z += 1;
+    }
+    return push;
   }
 
   // ¿El tramo recto de a → b pasa por encima de un vacío? (IA: lo que hay del otro lado no es "seguro")
@@ -759,9 +823,17 @@ export class Arena {
       const z = (this._r() - 0.5) * (this.h - 3);
       if (this.isFree(x, z, r) && !this.voidNear(x, z, m)) return { x, z };
     }
-    // respaldo (casi imposible llegar aquí): un spawn libre, que nunca está en un vacío
-    for (const s of this.def.spawns) if (this.isFree(s[0], s[1], 0.5)) return { x: s[0], z: s[1] };
-    return { x: this.def.spawns[0][0], z: this.def.spawns[0][1] };
+    // casi imposible llegar aquí: barrido fijo de la zona jugable, igual que el núcleo C#
+    // (nunca devolver un punto sobre un vacío)
+    const hw = this.w / 2 - this.inset, hh = this.h / 2;
+    for (let pass = 0; pass < 2; pass++) {
+      const rr = pass === 0 ? r : 0.3;
+      for (let z = 0; z <= hh - 1; z += 0.5) for (let x = 0; x <= hw - 1; x += 0.5) for (let q = 0; q < 4; q++) {
+        const px = (q & 1) === 0 ? x : -x, pz = (q & 2) === 0 ? z : -z;
+        if (this.isFree(px, pz, rr) && !this.voidNear(px, pz, m)) return { x: px, z: pz };
+      }
+    }
+    return { x: 0, z: 2 };
   }
 }
 

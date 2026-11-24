@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // MENÚS DE GORRAZO (IMGUI / OnGUI, legible en celular).
-//   Pantalla de carga · Inicio · Ajustes de partida (4 modos, arena,
-//   bots, dificultad, puntos, interruptores de reglas) · Wi‑Fi local
+//   Pantalla de carga · Inicio · Ajustes de partida (4 modos, las 4
+//   arenas o aleatoria, bots, dificultad, puntos, reglas) · Wi‑Fi local
 //   (crear sala con la IP en grande, buscar, unirse por IP o bf://) ·
 //   Reto del Día (semilla AAAAMMDD, mejor puntaje y tabla de 7 días) ·
 //   Vestidor (playeras, gorras, muñequitos, stickers/emotes, canje
@@ -306,11 +306,17 @@ namespace BoomerangFighters.UnityView
             GUILayout.Label(MatchRunner.ModeDescription(_r.GameMode), UiSkin.Small);
 
             GUILayout.Label("Escenario", UiSkin.H2);
-            GUILayout.BeginHorizontal();
-            foreach (var a in ArenaLibrary.All)
-                if (Btn(a.Name, _r.ArenaId == a.Id)) _r.ArenaId = a.Id;
-            GUILayout.EndHorizontal();
+            // de dos en dos para que los nombres largos ("Pop-up Store INKCAP") quepan en el celular
+            var arenas = ArenaLibrary.All;
+            for (int i = 0; i < arenas.Length; i += 2)
+            {
+                GUILayout.BeginHorizontal();
+                for (int k = i; k < i + 2 && k < arenas.Length; k++)
+                    if (Btn(arenas[k].Name, _r.ArenaId == arenas[k].Id)) _r.ArenaId = arenas[k].Id;
+                GUILayout.EndHorizontal();
+            }
             if (Btn("Aleatorio", _r.ArenaId == "aleatorio")) _r.ArenaId = "aleatorio";
+            GUILayout.Label(_r.ArenaId == "aleatorio" ? $"Cada partida sale una de las {arenas.Length} arenas al azar." : ArenaLibrary.Get(_r.ArenaId).Description, UiSkin.Small);
 
             if (!_playForLan)
             {
@@ -553,8 +559,8 @@ namespace BoomerangFighters.UnityView
             var d = ProgressStore.Data;
             int artists = caps ? DesignLibrary.ArtistCapCount : DesignLibrary.ArtistShirtCount;
             GUILayout.Label(caps
-                ? "El diseño va en la copa; la silueta y el tamaño nunca cambian. Tu color vive en el aro y el rastro."
-                : "La playera es la textura del cuerpo de tu muñequito.", UiSkin.Small);
+                ? "Copa de color liso con el logo o diseño en el panel de enfrente; la silueta y el tamaño nunca cambian. Tu color vive en el aro, el rastro y el botón."
+                : "Playera de tela lisa con el estampado al frente y en la espalda.", UiSkin.Small);
             GUILayout.Label(artists > 0 ? $"{artists} diseño(s) de artistas cargados." : $"Sin diseños de artistas aún (PNG en Resources/{(caps ? DesignLibrary.CapsFolder : DesignLibrary.ShirtsFolder)}).", UiSkin.Small);
             string equipped = caps ? d.Equipped.Cap : d.Equipped.Shirt;
             foreach (var def in list)

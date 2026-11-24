@@ -7,12 +7,23 @@
 // v0.2 (spec D): desvían gorras ("Te la regreso"), empujan sin gorra
 // y en Lata Caliente persiguen (si traen la lata) o huyen.
 // Todas sus "tiradas de dado" usan el Rng de la partida.
-// v0.3 (spec V5): tratan los vacíos como obstáculos al moverse, no hacen
-// dash hacia un vacío y se alejan si quedan a menos de 0.8 m de una orilla.
-// En la tienda también se quitan de la sombra de la caja DROP.
+// v0.3 (spec V5, igual que BotBrain.cs del núcleo C#): tratan los vacíos como
+// obstáculos al moverse, no hacen dash hacia un vacío, se alejan si quedan a
+// menos de 0.8 m de una orilla y salen de la sombra de la caja DROP.
+// También los aprovechan: sin gorra, van por el rival al que un empujón
+// dejaría dentro de un vacío (de ahí salen casi todas las caídas con crédito).
 // ─────────────────────────────────────────────────────────────
 import { emptyPad } from './input.js';
 import { DIFFICULTY, TUNING } from './config.js';
+
+// "Empujón al vacío" (mismos valores que el núcleo C#)
+const HUNT_COOLDOWN = 5;        // s de descanso después de un intento
+const HUNT_MAX_TIME = 1.5;      // si en 1.5 s no salió el empujón, lo deja
+const HUNT_ARMED_FACTOR = 2 / 3; // a un rival con gorra solo se le busca más de cerca
+const HUNT_SIDE_MIN_DOT = -0.5; // no rodea por completo al rival para buscar el lado bueno
+// lo que avanzan de verdad un dash (10 ticks) y un empujón (12 ticks)
+const DASH_REACH = 10 * TUNING.player.dashSpeed * TUNING.dtFixed;
+const SHOVE_REACH = TUNING.shove.dist;
 
 export class BotController {
   constructor(game, player, difficulty = 'normal') {
@@ -36,6 +47,8 @@ export class BotController {
     this.pendingDodge = null;
     this.preferredDist = 5 + this._rand() * 3;
     this.deflectRolled = new Set(); // gorras rivales para las que ya se tiró el dado de desvío
+    this.huntCd = 0;  // "empujón al vacío": descanso entre intentos
+    this.huntT = 0;   // segundos que lleva el intento actual
   }
 
   _rand() { return this.game.rng.next(); }
@@ -46,7 +59,7 @@ export class BotController {
     const p = emptyPad();
     if (!me.alive || g.state !== 'play') { this.charging = false; return p; }
 
-    this.retarget -= dt; this.think -= dt; this.throwCooldown -= dt; this.strafeT -= dt; this.dodgeT -= dt;
+    this.retarget -= dt; this.think -= dt; this.throwCooldown -= dt; this.strafeT -= dt; this.dodgeT -= dt; this.huntCd -= dt;
 
     // ── elegir objetivo (el más cercano con algo de "terquedad")
     if (!this.target || !this.target.alive || this.retarget <= 0) {
@@ -74,15 +87,17 @@ export class BotController {
       this.pendingDodge.t -= dt;
       moveX = this.pendingDodge.dir.x; moveZ = this.pendingDodge.dir.z;
       if (this.pendingDodge.t <= 0) {
-        // V5: nunca un dash hacia un vacío; se prueba el otro lado y, si tampoco, solo camina
-        let d = this.pendingDodge.dir;
-        if (!this._dashSafe(d.x, d.z)) d = this._dashSafe(-d.x, -d.z) ? { x: -d.x, z: -d.z } : null;
+        // V5: nunca un dash hacia un vacío (si el dash no es seguro, esquiva caminando)
+        const d = this.pendingDodge.dir;
         this.pendingDodge = null;
-        if (d) {
+        if (this._dashSafe(d.x, d.z)) {
           p.dashPressed = me.dashCd <= 0;
           p.mx = d.x; p.mz = d.z;
-          return p;
+        } else {
+          const m = this._avoidPits(d.x, d.z);
+          p.mx = m.x; p.mz = m.z;
         }
+        return p;
       }
     }
 
@@ -165,8 +180,35 @@ export class BotController {
     } else {
       this.charging = false;
       const cap = me.cap;
-      // gorra en el suelo: llamarla (o ir por ella si está cerca)
-      if (cap && cap.state === 'ground') {
+      // v0.3: sin gorra, aprovechar los vacíos: ir por el rival al que un empujón dejaría dentro de uno
+      let hunting = false;
+      const hunt = this.huntCd <= 0 && this.cfg.pitHunt > 0 && g.rules.shove && g.arena.voids.length ? this._findPitShove() : null;
+      if (hunt) {
+        hunting = true;
+        this.huntT += dt;
+        if (this.huntT > HUNT_MAX_TIME) this._endHunt(); // no salió: dejarlo por un rato
+        if (hunt.inPlace) {
+          if (me.shoveCd <= 0 && this._rand() < this.cfg.pitShoveChance) {
+            p.meleePressed = true;
+            p.ax = hunt.aim.x; p.az = hunt.aim.z; p.aim = true;
+            this._endHunt();
+          }
+        } else {
+          // acomodarse detrás del rival (gana a "huir"); si está lejos, llegar con dash
+          const gx = hunt.standAt.x - me.pos.x, gz = hunt.standAt.z - me.pos.z;
+          const gl = Math.hypot(gx, gz);
+          if (gl > 1e-3) {
+            const gd = { x: gx / gl, z: gz / gl };
+            moveX += gd.x * 2.2; moveZ += gd.z * 2.2;
+            if (gl > 2.4 && me.dashCd <= 0 && this._dashSafe(gd.x, gd.z)) {
+              p.mx = gd.x; p.mz = gd.z; p.dashPressed = true;
+              return p;
+            }
+          }
+        }
+      } else this.huntT = 0;
+      // gorra en el suelo: llamarla (o ir por ella si está cerca); mientras busca el empujón no la llama
+      if (cap && cap.state === 'ground' && !hunting) {
         const dc = dist(me.pos, cap.pos);
         if (dc < 3) {
           const d = norm(cap.pos.x - me.pos.x, cap.pos.z - me.pos.z);
@@ -201,26 +243,30 @@ export class BotController {
     return this._steer(p, moveX, moveZ);
   }
 
-  // Dirección final de movimiento: esquiva obstáculos y trata los vacíos como obstáculos (V5).
+  // Dirección final de movimiento (igual que el final de BotBrain.Think en C#):
+  // peligros, vacíos tratados como obstáculos (V5) y último filtro para no pisar un hueco.
   _steer(p, moveX, moveZ) {
     const g = this.game, me = this.player, a = g.arena;
     const R = TUNING.player.radius;
-    // V5: alejarse si quedó a menos de 0.8 m de la orilla de un vacío
-    const edge = a.voids.length ? a.voidNear(me.pos.x, me.pos.z, TUNING.voids.botEdge) : null;
-    if (edge) {
-      const k = 0.8 + 2.4 * (1 - edge.d / TUNING.voids.botEdge);
-      moveX += edge.ax * k; moveZ += edge.az * k;
+    // charcos que crecen: salir del círculo
+    for (const pd of g.puddles) {
+      if (pd.owner === me || pd.done) continue;
+      const dx = me.pos.x - pd.x, dz = me.pos.z - pd.z;
+      const d = Math.hypot(dx, dz);
+      if (d < TUNING.puddle.radius + 0.6) { const n = d > 1e-3 ? { x: dx / d, z: dz / d } : { x: 1, z: 0 }; moveX += n.x * 2.5; moveZ += n.z * 2.5; }
     }
-    // caja DROP: quitarse de la sombra de aviso
+    // caja DROP: salir de la sombra de aviso
     if (g.drop) {
       const dx = me.pos.x - g.drop.x, dz = me.pos.z - g.drop.z;
       const d = Math.hypot(dx, dz);
-      if (d < TUNING.drop.radius + 1.0) {
-        const n = d > 1e-3 ? { x: dx / d, z: dz / d } : { x: 1, z: 0 };
-        moveX += n.x * 3; moveZ += n.z * 3;
-      }
+      if (d < TUNING.drop.radius + 0.9) { const n = d > 1e-3 ? { x: dx / d, z: dz / d } : { x: 1, z: 0 }; moveX += n.x * 2.5; moveZ += n.z * 2.5; }
     }
-    // evitar obstáculos (y vacíos): sondeo hacia adelante
+    // muerte súbita: no quedarse pegado al muro que avanza
+    if (g.sdWarned && Math.abs(me.pos.x) > a.w / 2 - a.inset - 2) moveX += me.pos.x > 0 ? -1 : 1;
+    // V5: alejarse de la orilla de un vacío si está a menos de 0.8 m
+    const away = a.voids.length ? a.voidRepulsion(me.pos.x, me.pos.z, TUNING.voids.botEdge) : { x: 0, z: 0 };
+    moveX += away.x * 3; moveZ += away.z * 3;
+    // evitar obstáculos: sondeo hacia adelante (isFree cuenta los vacíos como obstáculo)
     const look = 1.4;
     const n0 = norm(moveX, moveZ);
     if (!a.isFree(me.pos.x + n0.x * look, me.pos.z + n0.z * look, R * 0.9)) {
@@ -229,40 +275,110 @@ export class BotController {
       const leftFree = a.isFree(me.pos.x + l.x * look, me.pos.z + l.z * look, R);
       moveX = leftFree ? l.x : -l.x; moveZ = leftFree ? l.z : -l.z;
     }
-    // último seguro: nunca dar el paso que lo mete a un vacío
-    if (a.voids.length) {
-      const m0 = norm(moveX, moveZ);
-      const bad = (dx, dz) => a.voidNear(me.pos.x + dx * 0.6, me.pos.z + dz * 0.6, 0.3) || a.voidNear(me.pos.x + dx * 1.15, me.pos.z + dz * 1.15, 0.2);
-      if ((m0.x || m0.z) && bad(m0.x, m0.z)) {
-        let found = null;
-        for (const ang of [0.7, -0.7, 1.4, -1.4, 2.2, -2.2, Math.PI]) {
-          const c = Math.cos(ang), sn = Math.sin(ang);
-          const cx = m0.x * c - m0.z * sn, cz = m0.x * sn + m0.z * c;
-          if (!bad(cx, cz)) { found = { x: cx, z: cz }; break; }
-        }
-        moveX = found ? found.x : 0; moveZ = found ? found.z : 0;
-      }
+    // dentro de esa franja de 0.8 m nunca se acerca más a la orilla: se quita la parte del paso que va hacia el hueco
+    if (away.x * away.x + away.z * away.z > 1e-6) {
+      const an = norm(away.x, away.z);
+      const toward = -(moveX * an.x + moveZ * an.z);
+      if (toward > 0) { moveX += an.x * toward; moveZ += an.z * toward; }
+      if (moveX * moveX + moveZ * moveZ < 0.04) { moveX = an.x * 0.6; moveZ = an.z * 0.6; }
     }
     const m = norm(moveX, moveZ);
     const mag = Math.min(1, Math.hypot(moveX, moveZ));
-    p.mx = m.x * mag; p.mz = m.z * mag;
+    const out = this._avoidPits(m.x * mag, m.z * mag);
+    p.mx = out.x; p.mz = out.z;
     // V5: nada de dash hacia un vacío
     if (p.dashPressed) {
-      const d = mag > 0.2 ? m : me.facing;
+      const ol = Math.hypot(out.x, out.z);
+      const d = ol > 0.2 ? { x: out.x / ol, z: out.z / ol } : me.facing;
       if (!this._dashSafe(d.x, d.z)) p.dashPressed = false;
     }
     return p;
   }
 
-  // ¿El dash (2.7 m y la inercia) pasa lejos de todos los vacíos?
+  // ── V5: vacíos ───────────────────────────────────────────
+  // ¿Dar unos pasos en esta dirección lo dejaría sobre un vacío (o pegado a su orilla)?
+  _stepSafe(dx, dz) {
+    const a = this.game.arena, me = this.player;
+    // se cuenta el patinón: la velocidad actual tarda unos cuadros en girar
+    const fx = me.pos.x + me.vel.x * 0.06, fz = me.pos.z + me.vel.z * 0.06;
+    const pad = 0.25; // que el centro no se acerque a menos de 0.25 m de la orilla
+    return !a.voidAt(fx + dx * 0.4, fz + dz * 0.4, -pad) && !a.voidAt(fx + dx * 0.8, fz + dz * 0.8, -pad);
+  }
+
+  // Último filtro del movimiento: si el paso lleva a un vacío, se gira (poco a poco, hacia
+  // ambos lados) hasta encontrar una dirección segura; si no hay, se queda quieto.
+  _avoidPits(mx, mz) {
+    if (!this.game.arena.voids.length) return { x: mx, z: mz };
+    const mag = Math.hypot(mx, mz);
+    if (mag < 1e-4) return { x: mx, z: mz };
+    const dx = mx / mag, dz = mz / mag;
+    if (this._stepSafe(dx, dz)) return { x: mx, z: mz };
+    const ang = Math.atan2(dz, dx), k = Math.max(mag, 0.8);
+    for (let i = 1; i <= 6; i++) {
+      const turn = i * (Math.PI / 6);
+      const lx = Math.cos(ang + turn), lz = Math.sin(ang + turn);
+      if (this._stepSafe(lx, lz)) return { x: lx * k, z: lz * k };
+      const rx = Math.cos(ang - turn), rz = Math.sin(ang - turn);
+      if (this._stepSafe(rx, rz)) return { x: rx * k, z: rz * k };
+    }
+    return { x: 0, z: 0 };
+  }
+
+  // Un dash (3 m) más lo que patina al terminar (≈1 m): seguro solo si en todo el trayecto no hay vacío.
   _dashSafe(dx, dz) {
     const a = this.game.arena, me = this.player;
     if (!a.voids.length) return true;
-    const L = TUNING.player.dashSpeed * TUNING.player.dashTime;
-    for (const k of [0.3, 0.6, 0.9, 1.2]) {
-      if (a.voidNear(me.pos.x + dx * L * k, me.pos.z + dz * L * k, 0.3)) return false;
+    const L = DASH_REACH + 1;
+    return !a.voidOnPath(me.pos.x, me.pos.z, me.pos.x + dx * L, me.pos.z + dz * L, 0.3);
+  }
+
+  // ¿Un empujón (2.5 m) en esa dirección dejaría a "o" dentro de un vacío?
+  _shoveEndsInPit(o, dx, dz) {
+    return !!this.game.arena.voidAt(o.pos.x + dx * SHOVE_REACH, o.pos.z + dz * SHOVE_REACH, TUNING.voids.shrink + 0.08);
+  }
+
+  _endHunt() { this.huntCd = HUNT_COOLDOWN; this.huntT = 0; }
+
+  // Busca un rival al que un empujón mandaría a un vacío. inPlace = ya estoy en posición
+  // (empujar ya, apuntando a "aim"); si no, standAt es el punto detrás del rival (del lado
+  // contrario al vacío) desde donde sí saldría el empujón.
+  _findPitShove() {
+    const g = this.game, me = this.player, a = g.arena;
+    if (me.cap.state === 'recall') return null; // mi gorra ya viene en camino: mejor esperarla
+    const PT = TUNING.player;
+    const range = PT.meleeRange + PT.radius * 0.5 - 0.1;
+    let bestD = Infinity, found = null;
+    for (const o of g.players) {
+      if (o === me || !o.alive || o.pushT > 1e-6) continue;
+      const dx = o.pos.x - me.pos.x, dz = o.pos.z - me.pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d > (o.hasCap ? this.cfg.pitHunt * HUNT_ARMED_FACTOR : this.cfg.pitHunt) || d < 1e-3) continue;
+      const dir = { x: dx / d, z: dz / d };
+      const straight = this._shoveEndsInPit(o, dir.x, dir.z);
+      if (d <= range && straight) return { aim: dir, standAt: me.pos, inPlace: true };
+      if (d >= bestD) continue;
+      let u = dir, ok = straight;
+      if (!ok) {
+        // desde aquí no sale: buscar el lado bueno (hacia el punto más cercano del vacío o hacia su centro)
+        for (const v of a.voids) {
+          const cx = Math.max(v.x - v.w / 2, Math.min(o.pos.x, v.x + v.w / 2));
+          const cz = Math.max(v.z - v.d / 2, Math.min(o.pos.z, v.z + v.d / 2));
+          if (Math.hypot(o.pos.x - cx, o.pos.z - cz) > SHOVE_REACH) continue;
+          for (let k = 0; k < 2 && !ok; k++) {
+            const c = norm((k === 0 ? cx : v.x) - o.pos.x, (k === 0 ? cz : v.z) - o.pos.z);
+            if (c.x * c.x + c.z * c.z < 0.5 || c.x * dir.x + c.z * dir.z < HUNT_SIDE_MIN_DOT || !this._shoveEndsInPit(o, c.x, c.z)) continue;
+            u = c; ok = true;
+          }
+          if (ok) break;
+        }
+      }
+      if (!ok) continue;
+      const spot = { x: o.pos.x - u.x * 1.8, z: o.pos.z - u.z * 1.8 };
+      // el punto de apoyo debe ser pisable y no estar pegado a otro vacío
+      if (!a.isFree(spot.x, spot.z, PT.radius * 0.9) || a.voidNear(spot.x, spot.z, 0.4)) continue;
+      found = { aim: dir, standAt: spot, inPlace: false }; bestD = d;
     }
-    return true;
+    return found;
   }
 
   // Lata Caliente: perseguir (con lata) o huir (sin lata). Lanza y golpea para pasarla.

@@ -305,7 +305,7 @@ class Player {
     this.charging = false; this.chargeT = 0;
     this.power = null; this.shield = false; this.slowT = 0;
     this.markedT = 0; this.hotImmune = 0;
-    this.lastHitBy = null; this.lastHitT = -99; // V2: quién lo empujó/golpeó/desvió y cuándo
+    this.lastHitBy = null; this.lastHitT = 0; // V2: quién lo empujó/golpeó/desvió y cuántos s le quedan al crédito (se borra cada ronda)
     this.aiming = false;
     this.toy.root.visible = true;
     this.toy.root.scale.setScalar(1.15); // por si venía de caer a un vacío (se encoge)
@@ -370,8 +370,17 @@ export class Game {
     this.rules = { ...DEFAULT_RULES };
     this.rng = new Rng(1);
     this.eventCounts = {};
+    // Partículas: UNA sola malla instanciada para todas (hasta 260): un KO ya no cuesta
+    // decenas de llamadas de dibujo extra (importa para los 30 fps en celular de gama media)
     this._particleGeo = new THREE.SphereGeometry(1, 6, 4);
-    this._particleMats = new Map();
+    this._pMax = 260;
+    this._pMesh = new THREE.InstancedMesh(this._particleGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }), this._pMax);
+    this._pMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    this._pMesh.count = 0;
+    this._pMesh.frustumCulled = false;
+    this._pColor = new THREE.Color();
+    this._pMesh.setColorAt(0, this._pColor.setHex(0xffffff)); // crea el atributo de color por instancia
+    this.scene.add(this._pMesh);
     this._puddleGeo = new THREE.CircleGeometry(1, 40);
     this._puddleRimGeo = new THREE.RingGeometry(0.94, 1, 40);
 
@@ -431,7 +440,7 @@ export class Game {
     for (const c of this.caps) if (!c.dead) c.kill();
     for (const pu of this.pickups) this.scene.remove(pu.group);
     for (const d of this.debris) this.scene.remove(d.obj);
-    for (const pa of this.particles) this.scene.remove(pa.mesh);
+    this._pMesh.count = 0;
     for (const pd of this.puddles) this.scene.remove(pd.group);
     if (this.hotMesh) { this.scene.remove(this.hotMesh); this.hotMesh = null; }
     this.players = []; this.caps = []; this.pickups = []; this.debris = []; this.particles = []; this.paintPatches = []; this.puddles = [];
@@ -672,13 +681,14 @@ export class Game {
     this.caps = this.caps.filter((c) => !c.dead);
     arena.updateTagWalls(dt);
     if (playing) {
+      // mismo orden que el núcleo C#: gorras, golpes, charcos, latas, lata caliente, caja DROP, láser y vacíos
       this._capHits();
       this._meleeHits();
-      this._pickups(dt);
-      this._hazards();
-      this._updateDrop();
       this._updatePuddles(dt);
+      this._pickups(dt);
       this._updateHotCan(dt);
+      this._updateDrop();
+      this._hazards();
     }
     // charcos de pintura (lentitud)
     for (const pp of this.paintPatches) pp.life -= dt;
@@ -728,6 +738,8 @@ export class Game {
   _updatePlayer(p, pad, dt, canAct) {
     p.dashCd -= dt; p.meleeCd -= dt; p.shoveCd -= dt; p.slowT -= dt; p.spawnInvuln -= dt; p.markedT -= dt; p.hotImmune -= dt;
     if (p.meleeT > 0) p.meleeT -= dt;
+    // V2: el crédito de una caída dura 2 s
+    if (p.lastHitT > 0) { p.lastHitT -= dt; if (p.lastHitT <= 0) { p.lastHitT = 0; p.lastHitBy = null; } }
 
     // dirección de movimiento y de apuntado
     let mx = pad.mx, mz = pad.mz;
@@ -994,8 +1006,12 @@ export class Game {
         if (hotMode && this.hot && this.hot.holder === p) this._passHotCan(p, v);
         if (p.meleeShove) {
           // A3: empujón, no noquea
+          // 2.5 m exactos (12 ticks), de quien empuja hacia el empujado; le corta el dash
           const sp = T.shove.dist / T.shove.time;
-          v.pushT = T.shove.time; v.pushV = { x: p.facing.x * sp, z: p.facing.z * sp };
+          const pd = norm(v.pos.x - p.pos.x, v.pos.z - p.pos.z);
+          const dir = pd.x || pd.z ? pd : p.facing;
+          v.pushT = T.shove.time; v.pushV = { x: dir.x * sp, z: dir.z * sp };
+          v.dashT = 0;
           v.charging = false;
           sfx.dash();
           this.float(v.pos.x, 2.2, v.pos.z, '¡EMPUJÓN!', '#f4f1ea');
@@ -1088,7 +1104,7 @@ export class Game {
         for (const v of this.players) {
           if (v === pd.owner || !v.alive || v.spawnInvuln > 0) continue;
           if (Math.hypot(v.pos.x - pd.x, v.pos.z - pd.z) < T.puddle.radius) {
-            if (v.shield) { v.shield = false; sfx.shieldBreak(); this.float(v.pos.x, 2.2, v.pos.z, '¡BLOQUEADO!', POWERUPS.bordado.css); continue; }
+            if (v.shield) { v.shield = false; this._credit(v, pd.owner); sfx.shieldBreak(); this.float(v.pos.x, 2.2, v.pos.z, '¡BLOQUEADO!', POWERUPS.bordado.css); continue; }
             this.kill(v, pd.owner, 'splash');
           }
         }
@@ -1166,9 +1182,9 @@ export class Game {
   // ── Vacíos (spec v0.3 §A) ──────────────────────────────────
   // V2: recuerda quién lo empujó / golpeó / desvió, y cuándo
   _credit(victim, by) {
-    if (!victim || !by || victim === by) return;
+    if (!victim || !by || victim === by || !victim.alive) return;
     victim.lastHitBy = by;
-    victim.lastHitT = this.simTime || 0;
+    victim.lastHitT = T.voids.creditTime;
   }
 
   // V1: cae quien tenga el CENTRO dentro de un vacío (reducido 0.15 m por lado)
@@ -1179,7 +1195,7 @@ export class Game {
       const v = this.arena.voidAt(p.pos.x, p.pos.z);
       if (!v) continue;
       // V2: el KO es de quien lo tocó en los últimos 2 s; si no, de nadie (como el láser)
-      const by = p.lastHitBy && (this.simTime || 0) - p.lastHitT <= T.voids.creditTime ? p.lastHitBy : null;
+      const by = p.lastHitT > 0 && p.lastHitBy ? p.lastHitBy : null;
       this.kill(p, by, 'vacio', v);
     }
   }
@@ -1204,6 +1220,9 @@ export class Game {
     if (this.drop && t >= this.drop.landAt) this._dropLand();
   }
 
+  // latas de técnica encendidas: no en Lata Caliente ni con la regla "powerUps" apagada (igual que el núcleo C#)
+  _pickupsOn() { return this.modeId !== 'lataCaliente' && this.rules.powerUps !== false; }
+
   _dropLand() {
     const { x, z } = this.drop;
     this.drop = null;
@@ -1217,12 +1236,13 @@ export class Game {
     this._emit('DropLand', { x, z });
     // noquea a quien esté a ≤ 1.1 m (centro a centro); el escudo bloquea. El KO no es de nadie.
     for (const p of this.players) {
-      if (!p.alive || Math.hypot(p.pos.x - x, p.pos.z - z) > T.drop.radius) continue;
+      if (!p.alive || p.spawnInvuln > 0 || Math.hypot(p.pos.x - x, p.pos.z - z) > T.drop.radius) continue;
       if (p.shield) { p.shield = false; sfx.shieldBreak(); this.float(p.pos.x, 2.2, p.pos.z, '¡BLOQUEADO!', POWERUPS.bordado.css); continue; }
       this.kill(p, null, 'drop');
     }
-    // deja una lata de técnica en ese lugar (en Lata Caliente o con las latas apagadas, no)
-    if (this.modeId !== 'lataCaliente' && this.rules.pickups !== false) this._spawnPickup({ x, z });
+    // deja una lata de técnica en ese lugar aunque ya haya el máximo de latas
+    // (en Lata Caliente o con las latas apagadas noquea pero no deja lata)
+    if (this._pickupsOn()) this._spawnPickup({ x, z });
   }
 
   kill(v, killer, cause, hole = null) {
@@ -1341,9 +1361,9 @@ export class Game {
 
   // ── Latas de técnica ───────────────────────────────────────
   _pickups(dt) {
-    if (this.state !== 'play' || this.modeId === 'lataCaliente') return; // sin latas de técnica en Lata Caliente
+    if (this.state !== 'play' || !this._pickupsOn()) return; // sin latas de técnica en Lata Caliente
     this.pickupTimer -= dt;
-    if (this.pickupTimer <= 0 && this.pickups.length < this.pickupsMax && this.rules.pickups !== false) {
+    if (this.pickupTimer <= 0 && this.pickups.length < this.pickupsMax) {
       this.pickupTimer = this.rng.range(this.pickupsEvery[0], this.pickupsEvery[1]);
       this._spawnPickup();
     }
@@ -1420,18 +1440,10 @@ export class Game {
   }
 
   // ── Efectos visuales ───────────────────────────────────────
-  _mat(color) {
-    if (!this._particleMats.has(color)) this._particleMats.set(color, new THREE.MeshBasicMaterial({ color }));
-    return this._particleMats.get(color);
-  }
 
   _spawnParticle(x, y, z, color, vx, vy, vz, size, life, gravity = 18) {
-    if (this.particles.length > 260) return;
-    const m = new THREE.Mesh(this._particleGeo, this._mat(color));
-    m.position.set(x, y, z);
-    m.scale.setScalar(size);
-    this.scene.add(m);
-    this.particles.push({ mesh: m, vx, vy, vz, life, max: life, size, gravity });
+    if (this.particles.length >= this._pMax) return;
+    this.particles.push({ x, y, z, color, vx, vy, vz, life, max: life, size, gravity });
   }
 
   burst(x, y, z, color, n = 20, speed = 7) {
@@ -1551,12 +1563,25 @@ export class Game {
     for (const pa of this.particles) {
       pa.life -= dt;
       pa.vy -= pa.gravity * dt;
-      pa.mesh.position.x += pa.vx * dt; pa.mesh.position.y += pa.vy * dt; pa.mesh.position.z += pa.vz * dt;
-      if (pa.mesh.position.y < 0.05) { pa.mesh.position.y = 0.05; pa.vy *= -0.3; pa.vx *= 0.6; pa.vz *= 0.6; }
-      pa.mesh.scale.setScalar(pa.size * Math.max(0, pa.life / pa.max));
+      pa.x += pa.vx * dt; pa.y += pa.vy * dt; pa.z += pa.vz * dt;
+      if (pa.y < 0.05) { pa.y = 0.05; pa.vy *= -0.3; pa.vx *= 0.6; pa.vz *= 0.6; }
     }
-    for (const pa of this.particles) if (pa.life <= 0) this.scene.remove(pa.mesh);
     this.particles = this.particles.filter((pa) => pa.life > 0);
+    // se escriben todas en la malla instanciada (matriz = escala uniforme + posición)
+    const im = this._pMesh, arr = im.instanceMatrix.array, col = im.instanceColor.array;
+    const n = Math.min(this.particles.length, this._pMax);
+    for (let i = 0; i < n; i++) {
+      const pa = this.particles[i], sc = pa.size * Math.max(0, pa.life / pa.max), o = i * 16;
+      arr[o] = sc; arr[o + 1] = 0; arr[o + 2] = 0; arr[o + 3] = 0;
+      arr[o + 4] = 0; arr[o + 5] = sc; arr[o + 6] = 0; arr[o + 7] = 0;
+      arr[o + 8] = 0; arr[o + 9] = 0; arr[o + 10] = sc; arr[o + 11] = 0;
+      arr[o + 12] = pa.x; arr[o + 13] = pa.y; arr[o + 14] = pa.z; arr[o + 15] = 1;
+      this._pColor.setHex(pa.color);
+      col[i * 3] = this._pColor.r; col[i * 3 + 1] = this._pColor.g; col[i * 3 + 2] = this._pColor.b;
+    }
+    im.count = n;
+    im.instanceMatrix.needsUpdate = true;
+    im.instanceColor.needsUpdate = true;
     // piezas del juguete
     for (const d of this.debris) {
       d.life -= dt;
@@ -1595,10 +1620,12 @@ export class Game {
       const [sx, sz] = this.arena ? this.arena.def.showcase : [0, 3];
       const wide = this.camera.aspect > 1.15;
       const k = wide ? Math.min(3.2, 1.2 + this.camera.aspect) : 0;
-      const back = wide ? 8.5 : 10;
+      // en vertical, el podio aleja la cámara y sube al ganador: la tabla ocupa la parte
+      // de abajo y arriba debe caber el muñequito con la taza en alto
+      const tall = this.mode === 'podium' && !wide;
+      const back = wide ? 8.5 : tall ? 15 : 10;
       this.camBase.set(sx - k, 3.4, sz + back);
-      // en vertical, el podio sube al ganador (la tabla ocupa la parte de abajo)
-      this.camTarget.set(sx - k, this.mode === 'podium' && !wide ? -0.5 : 1.4, sz + back - 10);
+      this.camTarget.set(sx - k, tall ? 0.36 : 1.4, sz + back - 10);
       return;
     }
     const vfov = THREE.MathUtils.degToRad(this.camera.fov);

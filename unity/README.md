@@ -21,7 +21,7 @@ Este folder tiene **el código base del juego para Unity 6**, organizado como re
 3. Copia la carpeta `unity/Assets/BoomerangFighters` dentro de `Assets/` de tu proyecto (incluye `Scripts/` y `Resources/`).
 4. Crea una escena vacía, agrega un GameObject vacío y ponle el componente **MatchRunner**. Él solo agrega `DebugHud` (HUD) y `GameMenu` (menús).
 5. Dale **Play**. Sale la pantalla de carga **GORRAZO · by INKCAP** y luego el menú:
-   - **Jugar aquí:** elige modo (¡Gorrazo!, Lata Caliente, La Reta), escenario, 1–2 jugadores en el mismo equipo, bots y dificultad, puntos (3/5/7) y los interruptores de reglas. WASD para moverte, `E` o clic para lanzar (mantén para cargar), `Q` o clic derecho para el golpe (sin gorra: empujón), `F` o `Espacio` para el dash. El mouse apunta. El segundo jugador usa IJKL, `O` lanzar, `U` golpe y `H` dash, o un control.
+   - **Jugar aquí:** elige modo (¡Gorrazo!, Lata Caliente, La Reta), escenario (Callejón Grafiti, Museo de Arte, Azotea CDMX, Pop-up Store INKCAP o Aleatorio), 1–2 jugadores en el mismo equipo, bots y dificultad, puntos (3/5/7) y los interruptores de reglas. WASD para moverte, `E` o clic para lanzar (mantén para cargar), `Q` o clic derecho para el golpe (sin gorra: empujón), `F` o `Espacio` para el dash. El mouse apunta. El segundo jugador usa IJKL, `O` lanzar, `U` golpe y `H` dash, o un control.
    - **Wi‑Fi local:** crear sala (muestra tu IP en grande y el texto `bf://IP:PUERTO/Sala`), buscar salas o unirse por IP. Entre computadoras o celulares en la misma red o en el hotspot de un celular.
    - **Reto del Día**, **Vestidor** y **Premio diario** (ver "Ruta local sin servidores").
    - En el celular el menú se desplaza arrastrando con el dedo.
@@ -51,14 +51,16 @@ Todo se dibuja con primitivas grises (*greybox*) para que se juegue desde el dí
 | `Net/LanDiscovery.cs` | Anuncio de salas por broadcast y unión por QR (`bf://IP:PUERTO/Sala`). |
 | `Unity/MatchRunner.cs` | El único componente que va en la escena. Modos: vs bots, anfitrión LAN, cliente LAN. |
 | `Unity/LocalInputReader.cs` | Teclado (2 jugadores), mouse, controles y táctil (joystick flotante, LANZAR con arrastre para apuntar, GOLPE, DASH). |
-| `Unity/GreyboxViews.cs`, `FxDirector.cs` | Vistas con primitivas: muros de muerte súbita, charco que crece, muro de tag, lata caliente sobre la cabeza, marca de Tatuaje, rastro rayado de "te la regreso", grada de La Reta; manchas de tinta, partículas y temblor de cámara. |
-| `Unity/DebugHud.cs` | HUD en juego: marcador, reloj y muerte súbita, lata caliente, fila de La Reta, letreros de KO (¡GORRAZO!, ¡DE REGRESO!, ¡DE BANDA!, ¡TE LA REGRESO!, ¡ZAZ!, ¡ZAP!, ¡SPLASH!, ¡TIRAJE!) y ¡EMPATE!, emote, botones táctiles. |
+| `Unity/GreyboxViews.cs`, `FxDirector.cs` | Vistas con primitivas: muñequito con playera y gorra, muros de muerte súbita, charco que crece, muro de tag, lata caliente sobre la cabeza, marca de Tatuaje, rastro rayado de "te la regreso", grada de La Reta; manchas de tinta, partículas y temblor de cámara. Desde v0.3: caída animada al vacío y caja DROP (sombra de aviso, caja que baja, golpe con polvo). |
+| `Unity/ArenaScenery.cs` | Escenografía greybox de las 4 arenas: piso en piezas alrededor de los vacíos, huecos con orilla de precaución (neón en el museo, escalones en la tienda, tablón de puente en la azotea), racks y mesa de gorras de la Pop-up Store y la decoración INKCAP (logo, cuadros y pósters de artistas, espectacular, tendedero, pared de gorras). |
+| `Unity/BrandArt.cs` | Texturas hechas con código: lee los píxeles de cualquier imagen (sin "Read/Write"), pinta el logo oficial sobre paneles lisos, rótulos con letra de bloques ("GORRAZO by INKCAP", "ESTRENOS"), franjas de precaución y degradado de los vacíos. No inventa logos. |
+| `Unity/DebugHud.cs` | HUD en juego: marcador, reloj y muerte súbita, lata caliente, fila de La Reta, letreros de KO (¡GORRAZO!, ¡DE REGRESO!, ¡DE BANDA!, ¡TE LA REGRESO!, ¡ZAZ!, ¡ZAP!, ¡SPLASH!, ¡TIRAJE!, ¡AL VACÍO!, ¡DROP!) y ¡EMPATE!, aviso ¡CAJA! de la tienda, emote, botones táctiles. |
 | `Unity/GameMenu.cs`, `UiSkin.cs` | Menús IMGUI legibles en celular: inicio, ajustes de partida, Wi‑Fi local, Reto del Día, vestidor, premio diario y resultados con XP. |
 | `Unity/LocalProgress.cs`, `ProgressStore.cs` | Progreso local (XP, nivel, Gotas, premio diario, calendario, inventario, equipado, tabla del Reto) en JSON dentro de `Application.persistentDataPath`. |
 | `Unity/DailyChallenge.cs` | Reto del Día: semilla `AAAAMMDD`, arena y regla del día (las mismas que la demo web). |
-| `Unity/DesignLibrary.cs` | Diseños del vestidor: carga sola los PNG de `Resources/Disenos/*` y el logo de `Resources/Marca/logo_inkcap` si existe. |
+| `Unity/DesignLibrary.cs` | Diseños del vestidor: carga sola los PNG de `Resources/Disenos/*` y el logo de `Resources/Marca/logo_inkcap` si existe. `DesignLook` decide cómo se ve cada diseño puesto: color de la tela o de la copa (el dominante de la imagen) y la zona del estampado o del logo para la calcomanía. |
 | `Unity/LanPlatform.cs` | `MulticastLock` de Android para anunciar y buscar salas. |
-| `Editor/*` | Post-build de iOS (Info.plist) y de Android (permisos en el manifiesto de Gradle). Solo editor. |
+| `Editor/*` | Post-build de iOS (Info.plist) y de Android (permisos en el manifiesto de Gradle), y `BrandTextureImport` (ajustes de importación del logo y los diseños la primera vez que entran al proyecto). Solo editor. |
 | `Resources/Disenos/Playeras`, `Resources/Disenos/Gorras`, `Resources/Marca` | Ranuras para los PNG de artistas y el logo oficial. Cada una trae un `README.txt` con el formato. |
 
 ## Lo nuevo en v0.2 (spec [`docs/diseno/spec-v0.2-local.md`](../docs/diseno/spec-v0.2-local.md))
@@ -67,7 +69,28 @@ Todo se dibuja con primitivas grises (*greybox*) para que se juegue desde el dí
 - **Latas:** Charco que crece 0.4 s y luego noquea, Muro de Tag de 2.5 × 0.4 m que bloquea 3 s, marca de Tatuaje sobre la víctima. Las latas son negro tinta con banda del color de la técnica (nunca de color de jugador).
 - **Modos:** ¡Gorrazo!, Lata Caliente (3–6), La Reta (2–8, fila en el HUD y grada detrás del muro) y Reto del Día (1 contra 3 bots difíciles).
 - **Marca:** "GORRAZO · by INKCAP" y "Lanza tu gorra, mancha a todos" en la carga, el menú y los resultados. No se inventa logo: si existe `Resources/Marca/logo_inkcap.png` se dibuja; si no, va el texto.
-- **Vestidor con diseños de artistas:** los PNG cuadrados (512–1024 px) de `Resources/Disenos/Playeras` y `Resources/Disenos/Gorras` aparecen solos; el nombre del archivo es el nombre del diseño. La playera es la textura del cuerpo; el diseño de gorra va en la copa (la silueta nunca cambia y el color del jugador queda en el aro, el rastro y el botón). Hay diseños de ejemplo hechos con código para que no salga vacío.
+- **Vestidor con diseños de artistas:** los PNG cuadrados (512–1024 px) de `Resources/Disenos/Playeras` y `Resources/Disenos/Gorras` aparecen solos; el nombre del archivo es el nombre del diseño. La silueta de la gorra nunca cambia y el color del jugador queda en el aro, el rastro y el botón. Hay diseños de ejemplo hechos con código para que no salga vacío. (Cómo se ven puestos cambió en v0.3: ver abajo.)
+
+## Lo nuevo en v0.3 en la capa de Unity (spec [`docs/diseno/spec-v0.3-escenarios.md`](../docs/diseno/spec-v0.3-escenarios.md))
+
+Las reglas (vacíos, arenas de 26 × 16, Pop-up Store, caja DROP) viven en `Core/`; esto es lo que hace la presentación con ellas. Nada de aquí decide reglas: solo lee `MatchSimulation` y los `SimEvent`, así que se ve igual sin red, como anfitrión y como cliente.
+
+- **Vacíos:** salen de `ArenaDef.Pits` (no viajan en el snapshot). El piso ya no es un solo cubo: `Scenery.BuildGround` lo arma en piezas alrededor de cada hueco y adentro pone un tiro oscuro (paredes con degradado y fondo negro). La orilla es una franja amarillo/negro de 26 cm; según el `Kind` del vacío: **foso** del museo con orilla de neón que late, **escalera** de la tienda con 6 escalones que bajan hacia la cámara, y los dos **huecos** de la azotea se dibujan como un solo tiro entre edificios con un **tablón de puente** encima. Coladeras y zanjas del callejón usan el estilo base.
+- **Caída al vacío:** con el evento `KO` de causa `KoCause.Vacio`, `WorldView.Handle` hace que el muñequito se resbale al hueco, se encoja y baje girando durante 0.75 s (en la escalera rueda hacia el fondo) en vez de desaparecer; `FxDirector` pone polvo en la orilla y gotas que se van al hueco, sin mancha ni explosión, y un temblor más suave. El HUD muestra **¡AL VACÍO!** con quién se lleva el crédito.
+- **Caja DROP (solo Pop-up Store):** mientras `MatchSimulation.DropPending` es verdadero, `DropBoxView` dibuja en `DropPos` un disco amarillo que parpadea del tamaño real de la zona que noquea, con una sombra que crece adentro, y la caja bajando del techo según `DropT`. Con `DropWarn` suena el aviso y el HUD dice **¡CAJA!**; con `DropLand` hay anillo de polvo, pedazos de cartón y temblor de cámara, y aparece la lata que deja. El KO sale como **¡DROP!**.
+- **Pop-up Store INKCAP:** racks con playeras colgadas (del color de la tela de cada diseño) y una de frente con su estampado, mesa de gorras con 3 snapbacks de exhibición y escaleras al sótano. Aparece en el menú junto a las otras 3 arenas (de dos en dos, con su descripción) y entra en "Aleatorio" y en el Reto del Día.
+- **Mundo INKCAP en las 4 arenas** (adorno sin colisión: pegado a los muros, pintado en el piso o fuera del área de juego):
+  - *Callejón:* mural con el logo en el muro del fondo, paste-ups con los diseños de artistas, sticker del logo en los contenedores y esténcil gastado en el piso.
+  - *Museo:* manta "EXPOSICIÓN INKCAP", cuadros de los artistas con su cédula en los tres muros, el logo tenue en el piso y una vitrina con las 6 gorras detrás del muro izquierdo.
+  - *Azotea:* espectacular "GORRAZO by INKCAP" detrás del pretil (en La Reta va pegado a la grada), tendedero con playeras de artistas y el logo pintado en la tapa de los tinacos.
+  - *Tienda:* logo grande con marco que late, pared de gorras con las 6 snapbacks, cartel "ESTRENOS" con playeras en exhibición, pósters laterales y logo en el piso de la entrada.
+- **Cómo se cargan el logo y los diseños:** todo sale de `Resources` con `DesignLibrary` (`Resources/Marca/logo_inkcap.png`, `Resources/Disenos/Playeras/*.png`, `Resources/Disenos/Gorras/*.png`); no hay rutas ni nombres de archivo en el código de las arenas. El logo es blanco con transparencia: `BrandArt.LogoSign` lo usa de plantilla y lo pinta sobre un panel liso (textura opaca, sin shaders transparentes); los rótulos con texto usan una letra de bloques hecha con código. **Si falta un recurso** no truena nada: sin logo van paneles negro tinta lisos y los rótulos escriben "INKCAP" con la misma letra; sin diseños de artistas van paneles de color, gorras lisas y playeras básicas. No se inventa ningún logo ni se usan marcas de terceros.
+- **Ajustes de importación:** no hace falta activar *Read/Write* en ninguna imagen (los píxeles se leen con un `RenderTexture`). `Editor/BrandTextureImport.cs` pone **Non-Power of 2 = None** al logo y a los diseños la primera vez que se importan: el logo mide 1200 × 364 y, con el ajuste por defecto de Unity, se estiraría a 1024 × 512 y saldría deformado. Si ya lo tenías importado de antes, cámbialo a mano en su Inspector.
+- **Ropa arreglada (`ToyView`, igual que en el prototipo web):**
+  - *Playera:* tela de color liso en el cuerpo y las mangas, y el estampado como **calcomanía curva al frente y en la espalda**; ya no se estira alrededor de la cápsula. En los PNG de artistas la tela es el color dominante de la imagen y la calcomanía muestra solo la zona del estampado (`DesignLook`). Las básicas son tela lisa y los patrones corridos de ejemplo (camuflaje, rayas, cuadros…) siguen envolviendo el cuerpo, como en la web.
+  - *Gorra puesta:* 1.3 veces más grande, calada hasta cubrir la coronilla y un poco echada hacia atrás; copa de color liso y el logo **solo en el panel de enfrente**. En las `INKCAP *.png` (512 × 512 con el logo repetido en x ≈ 128 y x ≈ 384) la copa toma el color de fondo y el panel recorta el logo de la izquierda. La visera sale del tono de la copa.
+  - *Gorra-proyectil:* mismo diseño (copa lisa + panel) pero **no cambia de tamaño**: su radio es regla de juego.
+- **Sonidos nuevos (opcionales)** en `MatchRunner ▸ Sounds`: `Fall`, `DropWarn` y `DropLand`. Sin clip usan `Ko`, `Beep` y `Explode`.
 
 ## Ruta local sin servidores
 
@@ -112,11 +135,11 @@ KOs por causa: ¡GORRAZO! ≈ 50 %, ¡DE REGRESO! 27–37 %, ¡TE LA REGRESO! 10
 
 | Arena | Rondas | Promedio | Mediana | p90 | KOs por vacío (con crédito + sin crédito) | Caja DROP | Láser |
 |---|---|---|---|---|---|---|---|
-| Callejón Grafiti | 170 | 12.4 s | 11.4 s | 18.6 s | 7.8 % (7.8 + 0.0) | — | — |
-| Museo de Arte | 190 | 12.1 s | 11.3 s | 16.8 s | 4.2 % (4.2 + 0.0) | — | 10.2 % |
-| Azotea CDMX | 185 | 10.8 s | 10.1 s | 15.8 s | 10.1 % (9.7 + 0.4) | — | — |
-| Pop-up Store INKCAP | 172 | 12.6 s | 11.5 s | 18.8 s | 2.3 % (2.3 + 0.0) | 0 KOs en 79 cajas | — |
-| **Total** | 717 | 11.9 s | | | **6.1 %** (6.0 + 0.1) | 0.0 % | 2.7 % |
+| Callejón Grafiti | 183 | 12.4 s | 11.4 s | 18.5 s | 6.5 % (6.5 + 0.0) | — | — |
+| Museo de Arte | 183 | 12.2 s | 11.5 s | 16.5 s | 3.8 % (3.8 + 0.0) | — | 9.1 % |
+| Azotea CDMX | 189 | 10.9 s | 10.1 s | 15.8 s | 8.6 % (8.6 + 0.0) | — | — |
+| Pop-up Store INKCAP | 176 | 12.5 s | 11.4 s | 18.6 s | 2.3 % (2.3 + 0.0) | 0 KOs en 80 cajas | — |
+| **Total** | 731 | 12.0 s | | | **5.4 %** (5.4 + 0.0) | 0.0 % | 2.3 % |
 
 Metas de la spec: rondas de 10–25 s en cada arena, caídas al vacío entre 5 % y 25 % de los KOs y menos de 15 % sin crédito, estas dos sobre el total de las 4 arenas. Las tres se cumplen. Los bots casi nunca se caen solos; las caídas salen de su táctica de empujar al rival hacia un vacío cuando se quedan sin gorra. En la Pop-up Store el vacío pesa poco (las escaleras están en dos esquinas) y los bots siempre salen de la sombra de la caja DROP; con jugadores humanos habrá más caídas y más ¡DROP!. Con bots en Fácil el total de vacío baja a ≈ 2.4 % y en Difícil sube a ≈ 7.9 %.
 

@@ -18,4 +18,33 @@ export const GEO = {
   disc: new THREE.CircleGeometry(1, 32).rotateX(-Math.PI / 2),
   ring: new THREE.RingGeometry(0.86, 1, 40).rotateX(-Math.PI / 2),
 };
-export const HIDDEN = new THREE.MeshBasicMaterial({ visible: false });
+
+// Caja con solo 3 grupos de material: [cara principal, tapa de arriba, lo demás].
+// Un muro cuesta 3 llamadas de dibujo en vez de 6. face: 0 = +x, 1 = −x, 4 = +z.
+const _faceBoxes = new Map();
+export function faceBox(face) {
+  if (_faceBoxes.has(face)) return _faceBoxes.get(face);
+  const g = new THREE.BoxGeometry(1, 1, 1);
+  const src = Array.from(g.index.array);
+  const tri = (f) => src.slice(f * 6, f * 6 + 6); // BoxGeometry: 6 índices por cara (+x, −x, +y, −y, +z, −z)
+  const rest = [0, 1, 3, 4, 5].filter((f) => f !== face);
+  g.setIndex([...tri(face), ...tri(2), ...rest.flatMap(tri)]);
+  g.clearGroups();
+  g.addGroup(0, 6, 0); g.addGroup(6, 6, 1); g.addGroup(12, rest.length * 6, 2);
+  _faceBoxes.set(face, g);
+  return g;
+}
+
+// Caja hueca de un vacío vista por dentro: [4 paredes, fondo] (sin tapa): 2 llamadas de dibujo.
+let _pitBox = null;
+export function pitBox() {
+  if (_pitBox) return _pitBox;
+  const g = new THREE.BoxGeometry(1, 1, 1);
+  const src = Array.from(g.index.array);
+  const tri = (f) => src.slice(f * 6, f * 6 + 6);
+  g.setIndex([...tri(0), ...tri(1), ...tri(4), ...tri(5), ...tri(3)]);
+  g.clearGroups();
+  g.addGroup(0, 24, 0); g.addGroup(24, 6, 1);
+  _pitBox = g;
+  return g;
+}

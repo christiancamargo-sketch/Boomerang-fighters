@@ -7,6 +7,11 @@
 // v0.2: muros de muerte súbita, charco que crece, muro de tag, lata
 // caliente sobre la cabeza, marca de Tatuaje, rastro rayado de la gorra
 // desviada, grada de La Reta y diseños del vestidor (playera y gorra).
+// v0.3: vacíos (el piso se arma en piezas y la escenografía vive en
+// ArenaScenery.cs), caída animada al vacío, caja DROP de la Pop-up
+// Store y ropa arreglada: playera de tela lisa con el estampado como
+// calcomanía al frente y atrás, gorra más grande con el logo solo en
+// el panel de enfrente.
 // Conversión de ejes: Unity = (sim.x, altura, -sim.y).
 // ─────────────────────────────────────────────────────────────
 using System.Collections.Generic;
@@ -26,6 +31,9 @@ namespace BoomerangFighters.UnityView
 
         public static Color PlayerColor(int id) => Hex(PlayerColors[((id % PlayerColors.Length) + PlayerColors.Length) % PlayerColors.Length]);
 
+        /// <summary>Mismo color, más oscuro o más claro (k), siempre opaco.</summary>
+        public static Color Shade(Color c, float k) => new Color(c.r * k, c.g * k, c.b * k, 1f);
+
         /// <summary>Crea una primitiva sin collider, con material propio del color dado (funciona en URP y Built-in).</summary>
         public static GameObject Prim(PrimitiveType type, Transform parent, Color color, Vector3 localPos, Vector3 scale, string name = null)
         {
@@ -35,11 +43,92 @@ namespace BoomerangFighters.UnityView
             if (col != null) Object.Destroy(col);
             var r = go.GetComponent<Renderer>();
             if (_base == null) _base = r.sharedMaterial;
-            r.material = new Material(_base) { color = color };
+            // ".material" crea la copia propia del renderer UNA vez (asignar un "new Material" hacía que el
+            // primer ".material" posterior lo volviera a clonar y el original quedara huérfano)
+            r.material.color = color;
             go.transform.SetParent(parent, false);
             go.transform.localPosition = localPos;
             go.transform.localScale = scale;
             return go;
+        }
+
+        /// <summary>Como Prim, pero con una malla propia (p. ej. la calcomanía curva de la playera).</summary>
+        public static GameObject MeshPrim(Mesh mesh, Transform parent, Color color, Vector3 localPos, Vector3 scale, string name)
+        {
+            if (_base == null)
+            {
+                // todavía no se ha creado ninguna primitiva: se pide una solo para conocer el material por defecto
+                var probe = GameObject.CreatePrimitive(PrimitiveType.Quad);
+                _base = probe.GetComponent<Renderer>().sharedMaterial;
+                Object.Destroy(probe);
+            }
+            var go = new GameObject(name);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var r = go.AddComponent<MeshRenderer>();
+            r.sharedMaterial = _base;
+            r.material.color = color;
+            go.transform.SetParent(parent, false);
+            go.transform.localPosition = localPos;
+            go.transform.localScale = scale;
+            return go;
+        }
+
+        /// <summary>
+        /// Para calcomanías y cosas pintadas o pegadas sobre otra superficie: no proyectan sombra
+        /// (menos dibujado en el celular y ninguna mancha rara entre dos caras casi juntas).
+        /// </summary>
+        public static GameObject Flat(GameObject go)
+        {
+            var r = go != null ? go.GetComponent<Renderer>() : null;
+            if (r != null) r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            return go;
+        }
+
+        /// <summary>Medio ángulo (radianes) que abarca ArcMesh a cada lado del frente.</summary>
+        public const float ArcHalfAngle = 0.698f; // 40°
+        static Mesh _arc;
+
+        /// <summary>
+        /// Calcomanía curva: tira de cilindro de radio 1 y alto 1, centrada en +Z (el frente del muñequito),
+        /// con la imagen derecha vista desde afuera. Se escala a (radio, alto, radio). Una sola malla para todos.
+        /// </summary>
+        public static Mesh ArcMesh
+        {
+            get
+            {
+                if (_arc != null) return _arc;
+                const int seg = 8;
+                var v = new Vector3[(seg + 1) * 2];
+                var n = new Vector3[v.Length];
+                var uv = new Vector2[v.Length];
+                var tri = new int[seg * 12];
+                for (int i = 0; i <= seg; i++)
+                {
+                    float a = Mathf.Lerp(-ArcHalfAngle, ArcHalfAngle, i / (float)seg);
+                    float x = Mathf.Sin(a), z = Mathf.Cos(a);
+                    v[i * 2] = new Vector3(x, -0.5f, z);
+                    v[i * 2 + 1] = new Vector3(x, 0.5f, z);
+                    n[i * 2] = n[i * 2 + 1] = new Vector3(x, 0f, z);
+                    // visto de frente (desde +Z) la derecha de quien mira es −X: ahí va u = 1
+                    float u = 1f - i / (float)seg;
+                    uv[i * 2] = new Vector2(u, 0f);
+                    uv[i * 2 + 1] = new Vector2(u, 1f);
+                }
+                for (int i = 0; i < seg; i++)
+                {
+                    int a0 = i * 2, a1 = a0 + 1, b0 = a0 + 2, b1 = a0 + 3, t = i * 12;
+                    // las dos caras (la de adentro nunca se ve: queda dentro del cuerpo)
+                    tri[t] = a0; tri[t + 1] = a1; tri[t + 2] = b1; tri[t + 3] = a0; tri[t + 4] = b1; tri[t + 5] = b0;
+                    tri[t + 6] = a0; tri[t + 7] = b1; tri[t + 8] = a1; tri[t + 9] = a0; tri[t + 10] = b0; tri[t + 11] = b1;
+                }
+                _arc = new Mesh { name = "Calcomanía curva" };
+                _arc.vertices = v;
+                _arc.normals = n;
+                _arc.uv = uv;
+                _arc.triangles = tri;
+                _arc.RecalculateBounds();
+                return _arc;
+            }
         }
 
         /// <summary>
@@ -56,12 +145,26 @@ namespace BoomerangFighters.UnityView
         }
 
         /// <summary>Pone una textura de diseño en la primitiva (mainTexture = _BaseMap en URP, _MainTex en Built-in).</summary>
-        public static void ApplyTexture(GameObject go, Texture tex)
+        public static void ApplyTexture(GameObject go, Texture tex) => ApplyTexture(go, tex, Color.white);
+
+        /// <summary>Textura teñida de un color (p. ej. el degradado de las paredes de un vacío).</summary>
+        public static void ApplyTexture(GameObject go, Texture tex, Color tint)
         {
             if (go == null || tex == null) return;
-            var r = go.GetComponent<Renderer>();
-            r.material.mainTexture = tex;
-            r.material.color = Color.white;
+            var m = go.GetComponent<Renderer>().material;
+            m.mainTexture = tex;
+            m.color = tint;
+        }
+
+        /// <summary>Textura mostrando solo la zona "uv" (calcomanías recortadas, franjas que se repiten).</summary>
+        public static void ApplyTexture(GameObject go, Texture tex, Rect uv)
+        {
+            if (go == null || tex == null) return;
+            var m = go.GetComponent<Renderer>().material;
+            m.mainTexture = tex;
+            m.color = Color.white;
+            m.mainTextureScale = new Vector2(uv.width, uv.height);
+            m.mainTextureOffset = new Vector2(uv.x, uv.y);
         }
 
         // Paleta Okabe-Ito (apta para daltonismo). El color del jugador va en el aro y la gorra, nunca en la ropa.
@@ -74,10 +177,10 @@ namespace BoomerangFighters.UnityView
         public const float BenchHeight = 2.4f;
     }
 
-    /// <summary>Lo que trae puesto cada jugador en la vista.</summary>
+    /// <summary>Lo que trae puesto cada jugador en la vista (null = sin diseño).</summary>
     public struct Outfit
     {
-        public Texture Shirt;
+        public DesignDef Shirt;
         public DesignDef Cap;
     }
 
@@ -85,6 +188,7 @@ namespace BoomerangFighters.UnityView
     {
         public readonly GameObject Root;
         readonly List<GameObject> _lasers = new List<GameObject>();
+        readonly List<Glow> _glows = new List<Glow>();
         readonly Arena _arena;
         readonly Transform _sdLeft, _sdRight, _sdEdgeL, _sdEdgeR, _sdMarkL, _sdMarkR;
         const float SdWallH = 1.6f;
@@ -94,31 +198,17 @@ namespace BoomerangFighters.UnityView
             _arena = arena;
             var d = arena.Def;
             Root = new GameObject($"Arena · {d.Name}");
-            Color floor = d.Id == "museo" ? Greybox.Hex(0xE9E4DA) : d.Id == "azotea" ? Greybox.Hex(0xB5764F) : Greybox.Hex(0x3A3A42);
-            Color wall = d.Id == "museo" ? Greybox.Hex(0xECE6DC) : d.Id == "azotea" ? Greybox.Hex(0xD9A46C) : Greybox.Hex(0x7A4E44);
-            Greybox.Prim(PrimitiveType.Cube, Root.transform, floor, new Vector3(0f, -0.05f, 0f), new Vector3(d.Width, 0.1f, d.Depth), "Piso");
-            float wh = d.Id == "azotea" ? 1f : 2.4f, t = 0.6f;
+            var look = Scenery.LookFor(d.Id);
+            Color wall = look.Wall;
+            // piso en piezas alrededor de los vacíos + huecos, orillas de precaución, escalones y tablón
+            Scenery.BuildGround(Root.transform, d, look, _glows);
+            float wh = look.WallHeight, t = Scenery.WallThickness;
             Greybox.Prim(PrimitiveType.Cube, Root.transform, wall, new Vector3(0f, wh / 2f, d.Depth / 2f + t / 2f), new Vector3(d.Width + 2 * t, wh, t), "Muro fondo");
             Greybox.Prim(PrimitiveType.Cube, Root.transform, wall, new Vector3(-d.Width / 2f - t / 2f, wh / 2f, 0f), new Vector3(t, wh, d.Depth), "Muro izq");
             Greybox.Prim(PrimitiveType.Cube, Root.transform, wall, new Vector3(d.Width / 2f + t / 2f, wh / 2f, 0f), new Vector3(t, wh, d.Depth), "Muro der");
-            Greybox.Prim(PrimitiveType.Cube, Root.transform, wall * 0.8f, new Vector3(0f, 0.175f, -d.Depth / 2f - t / 2f), new Vector3(d.Width + 2 * t, 0.35f, t), "Muro frente");
-            foreach (var o in d.Obstacles)
-            {
-                Color c = o.Kind switch
-                {
-                    "dumpster" => Greybox.Hex(0x1F7A4D),
-                    "pedestal" => Greybox.Hex(0xF4F1EA),
-                    "tinaco" => Greybox.Hex(0x111111),
-                    "bench" => Greybox.Hex(0x6D4C41),
-                    "planter" => Greybox.Hex(0x8D6E63),
-                    "gas" => Greybox.Hex(0xE0E0E0),
-                    _ => Greybox.Hex(0xBC8A5F),
-                };
-                var type = o.Kind == "tinaco" || o.Kind == "gas" ? PrimitiveType.Cylinder : PrimitiveType.Cube;
-                var s = type == PrimitiveType.Cylinder ? new Vector3(o.w, o.h / 2f, o.d) : new Vector3(o.w, o.h, o.d);
-                Greybox.Prim(type, Root.transform, c, Greybox.ToUnity(new Vec2(o.x, o.y), o.h / 2f), s, o.Kind);
-            }
-            foreach (var hz in arena.Hazards)
+            Greybox.Prim(PrimitiveType.Cube, Root.transform, Greybox.Shade(wall, 0.8f), new Vector3(0f, 0.175f, -d.Depth / 2f - t / 2f), new Vector3(d.Width + 2 * t, 0.35f, t), "Muro frente");
+            for (int i = 0; i < d.Obstacles.Length; i++) Scenery.BuildObstacle(Root.transform, d.Obstacles[i], i);
+            for (int i = 0; i < arena.Hazards.Count; i++)
             {
                 var beam = Greybox.Prim(PrimitiveType.Cube, Root.transform, new Color(1f, 0.1f, 0.25f), new Vector3(0f, 0.7f, 0f), new Vector3(d.Width, 0.12f, 0.12f), "Láser");
                 beam.SetActive(false);
@@ -137,6 +227,10 @@ namespace BoomerangFighters.UnityView
             // La Reta: grada detrás del muro del fondo para los que esperan su turno
             if (mode == GameMode.LaReta)
                 Greybox.Prim(PrimitiveType.Cube, Root.transform, Greybox.Hex(0x4A3F5C), new Vector3(0f, Greybox.BenchHeight / 2f, d.Depth / 2f + 1.5f), new Vector3(d.Width + 2 * t, Greybox.BenchHeight, 1.8f), "Grada");
+
+            // Mundo INKCAP: logo, cuadros, espectacular, pared de gorras… Es adorno: si algo falla, la arena se juega igual.
+            try { Scenery.Decorate(Root.transform, d, mode, look, _glows); }
+            catch (System.Exception e) { Debug.LogWarning($"Decoración de «{d.Name}» incompleta: {e.Message}"); }
         }
 
         public void Sync(MatchSimulation sim, float time)
@@ -149,6 +243,14 @@ namespace BoomerangFighters.UnityView
                 beam.SetActive(hz.State == LaserState.Active || (hz.State == LaserState.Warn && blink));
                 beam.transform.localPosition = new Vector3(0f, 0.7f, -hz.Z);
                 beam.transform.localScale = new Vector3(_arena.Def.Width, hz.State == LaserState.Active ? 0.18f : 0.05f, hz.State == LaserState.Active ? 0.18f : 0.05f);
+            }
+
+            // neón de los fosos del museo y marco iluminado del logo de la tienda: "laten"
+            for (int i = 0; i < _glows.Count; i++)
+            {
+                var gl = _glows[i];
+                if (gl.R == null) continue;
+                gl.R.material.color = Color.Lerp(gl.Color, Color.white, 0.25f + 0.25f * Mathf.Sin(time * 2.6f + gl.Phase));
             }
 
             float inset = _arena.WallInset, hw = _arena.HalfW, depth = _arena.Def.Depth;
@@ -180,7 +282,10 @@ namespace BoomerangFighters.UnityView
         public void Destroy() => Greybox.DestroyTree(Root);
     }
 
-    /// <summary>Muñequito greybox: cabeza grande, cuerpo chico (playera), gorra (visible solo si la tiene).</summary>
+    /// <summary>
+    /// Muñequito greybox: cabeza grande, cuerpo chico con playera (tela lisa + estampado al frente y atrás)
+    /// y gorra snapback (visible solo si la tiene).
+    /// </summary>
     public sealed class ToyView
     {
         public readonly GameObject Root;
@@ -188,7 +293,21 @@ namespace BoomerangFighters.UnityView
         readonly Renderer _ring;
         readonly Color _color;
         float _bob, _markSpin;
+        // caída a un vacío (V7): mientras _fallT ≥ 0 manda la animación, no la simulación
+        float _fallT = -1f, _fallDepth;
+        Vector3 _fallFrom, _fallTo;
+        bool _fallSlide;
+        bool _snap = true; // al (re)aparecer se coloca de golpe, sin deslizarse desde donde quedó
         public const float HeadTop = 2.0f; // altura (sin escala) de la parte de arriba de la gorra
+        /// <summary>Segundos que tarda en perderse dentro del vacío.</summary>
+        public const float FallTime = 0.75f;
+        const float BodyScale = 1.15f;
+        // estampado: tira curva pegada al cuerpo (radio del cuerpo 0.27), al frente y en la espalda
+        const float PrintRadius = 0.277f, PrintHeight = 0.36f;
+        // gorra puesta: más grande que la gorra-proyectil para que cubra la coronilla (el proyectil NO cambia)
+        const float HeadCapScale = 1.3f;
+        // panel de enfrente de la gorra (donde va el logo o el diseño)
+        const float PanelWidth = 0.36f, PanelHeight = 0.15f;
 
         public ToyView(PlayerState p, Outfit outfit)
         {
@@ -197,18 +316,35 @@ namespace BoomerangFighters.UnityView
             _pivot = new GameObject("Pivote").transform;
             _pivot.SetParent(Root.transform, false);
             var vinyl = Greybox.Hex(Greybox.VinylColors[((p.Species % Greybox.VinylColors.Length) + Greybox.VinylColors.Length) % Greybox.VinylColors.Length]);
-            var body = Greybox.Prim(PrimitiveType.Capsule, _pivot, Color.white, new Vector3(0f, 0.48f, 0f), new Vector3(0.54f, 0.38f, 0.54f), "Cuerpo (playera)");
-            Greybox.ApplyTexture(body, outfit.Shirt);
+
+            // playera: tela de color liso (o patrón corrido que envuelve) en el cuerpo y las mangas
+            var shirt = outfit.Shirt != null ? outfit.Shirt.Look : null;
+            Color fabric = shirt == null ? Greybox.Hex(0xF2F2EE) : shirt.Solid;
+            var wrap = shirt != null ? shirt.Wrap : null;
+            var body = Greybox.Prim(PrimitiveType.Capsule, _pivot, fabric, new Vector3(0f, 0.48f, 0f), new Vector3(0.54f, 0.38f, 0.54f), "Cuerpo (playera)");
+            Greybox.ApplyTexture(body, wrap);
             // v0.3: mangas, piernas de jogger y tenis (como el prototipo web)
             foreach (float sx in new[] { -1f, 1f })
             {
-                var sleeve = Greybox.Prim(PrimitiveType.Cylinder, _pivot, Color.white, new Vector3(0.29f * sx, 0.6f, 0f), new Vector3(0.22f, 0.075f, 0.22f), "Manga");
+                var sleeve = Greybox.Prim(PrimitiveType.Cylinder, _pivot, fabric, new Vector3(0.29f * sx, 0.6f, 0f), new Vector3(0.22f, 0.075f, 0.22f), "Manga");
                 sleeve.transform.localRotation = Quaternion.Euler(0f, 0f, 55f * sx);
-                Greybox.ApplyTexture(sleeve, outfit.Shirt);
+                Greybox.ApplyTexture(sleeve, wrap);
                 Greybox.Prim(PrimitiveType.Cylinder, _pivot, Greybox.Hex(0x2A2D36), new Vector3(0.13f * sx, 0.2f, 0f), new Vector3(0.15f, 0.1f, 0.15f), "Pierna");
                 Greybox.Prim(PrimitiveType.Capsule, _pivot, Greybox.Hex(0xF4F4F0), new Vector3(0.14f * sx, 0.06f, 0.03f), new Vector3(0.15f, 0.08f, 0.26f), "Suela");
                 Greybox.Prim(PrimitiveType.Sphere, _pivot, Greybox.Hex(0x1C1B20), new Vector3(0.14f * sx, 0.11f, 0.02f), new Vector3(0.16f, 0.11f, 0.22f), "Tenis");
             }
+            // estampado: calcomanía al frente y en la espalda (no se estira alrededor del cuerpo)
+            if (shirt != null && shirt.Decal != null)
+            {
+                var crop = shirt.Crop(2f * Greybox.ArcHalfAngle * PrintRadius / PrintHeight);
+                foreach (float yaw in new[] { 0f, 180f })
+                {
+                    var print = Greybox.Flat(Greybox.MeshPrim(Greybox.ArcMesh, _pivot, Color.white, new Vector3(0f, 0.48f, 0f), new Vector3(PrintRadius, PrintHeight, PrintRadius), yaw == 0f ? "Estampado frente" : "Estampado espalda"));
+                    print.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+                    Greybox.ApplyTexture(print, shirt.Decal, crop);
+                }
+            }
+
             var head = Greybox.Prim(PrimitiveType.Sphere, _pivot, vinyl, new Vector3(0f, 1.08f, 0f), new Vector3(0.97f, 0.85f, 0.9f), "Cabeza");
             foreach (float sx in new[] { -0.16f, 0.16f })
                 Greybox.Prim(PrimitiveType.Sphere, head.transform, Color.black, new Vector3(sx / 0.97f, 0.02f, 0.45f), new Vector3(0.14f, 0.24f, 0.08f), "Ojo");
@@ -216,8 +352,11 @@ namespace BoomerangFighters.UnityView
             Greybox.Prim(PrimitiveType.Sphere, head.transform, Greybox.Hex(0x141414), new Vector3(0f, -0.15f, 0.47f), new Vector3(0.1f, 0.03f, 0.03f), "Boca");
             foreach (float sx in new[] { -0.27f, 0.27f })
                 Greybox.Prim(PrimitiveType.Sphere, head.transform, Greybox.Hex(0xFF8FB1), new Vector3(sx, -0.09f, 0.4f), new Vector3(0.11f, 0.06f, 0.03f), "Chapita");
+            // gorra puesta: más grande, calada hasta cubrir la coronilla y un poco echada hacia atrás
             _capOnHead = BuildCap(_pivot, _color, outfit.Cap).transform;
-            _capOnHead.localPosition = new Vector3(0f, 1.38f, 0f);
+            _capOnHead.localPosition = new Vector3(0f, 1.26f, 0f);
+            _capOnHead.localRotation = Quaternion.Euler(-6f, 0f, 0f);
+            _capOnHead.localScale = Vector3.one * HeadCapScale;
             var ring = Greybox.Prim(PrimitiveType.Cylinder, Root.transform, _color, new Vector3(0f, 0.02f, 0f), new Vector3(1.4f, 0.01f, 1.4f), "Aro");
             _ring = ring.GetComponent<Renderer>();
             _shield = Greybox.Prim(PrimitiveType.Sphere, Root.transform, new Color(1f, 0.7f, 0f), new Vector3(0f, 0.8f, 0f), Vector3.one * 1.9f, "Escudo").transform;
@@ -229,24 +368,37 @@ namespace BoomerangFighters.UnityView
             Greybox.Prim(PrimitiveType.Cube, _mark, Greybox.Hex(Greybox.Magenta), Vector3.zero, new Vector3(0.36f, 0.36f, 0.08f), "Rombo").transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
             Greybox.Prim(PrimitiveType.Cube, _mark, Greybox.Hex(Greybox.Ink), new Vector3(0f, 0f, -0.01f), new Vector3(0.16f, 0.16f, 0.1f), "Centro").transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
             _mark.gameObject.SetActive(false);
-            Root.transform.localScale = Vector3.one * 1.15f;
+            Root.transform.localScale = Vector3.one * BodyScale;
         }
 
-        /// <summary>Gorra greybox. Con diseño: la COPA lleva la textura y la visera su color; sin diseño, todo del color del jugador.</summary>
+        /// <summary>
+        /// Gorra greybox (sirve en la cabeza, como proyectil y de adorno). Sin diseño: toda del color del jugador.
+        /// Con diseño: copa de color liso y el logo o diseño SOLO en el panel de enfrente; los patrones corridos
+        /// de ejemplo envuelven la copa. La silueta y el tamaño no cambian con el diseño.
+        /// </summary>
         public static GameObject BuildCap(Transform parent, Color color, DesignDef design = null)
         {
             var cap = new GameObject("Gorra");
             cap.transform.SetParent(parent, false);
-            var tex = design != null && !design.PlayerColor ? design.Texture : null;
-            var crown = Greybox.Prim(PrimitiveType.Sphere, cap.transform, color, Vector3.zero, new Vector3(0.72f, 0.42f, 0.72f), "Copa");
-            Greybox.ApplyTexture(crown, tex);
-            var visor = tex != null ? Greybox.Hex(design.Visor) : color * 0.75f;
-            // visera plana de snapback (como las gorras reales de INKCAP)
+            var look = design != null && !design.PlayerColor ? design.Look : null;
+            bool designed = look != null;
+            var wrap = designed ? look.Wrap : null;
+            var crown = Greybox.Prim(PrimitiveType.Sphere, cap.transform, designed ? look.Solid : color, Vector3.zero, new Vector3(0.72f, 0.42f, 0.72f), "Copa");
+            Greybox.ApplyTexture(crown, wrap);
+            if (designed && look.Decal != null)
+            {
+                // panel plano recostado sobre el frente de la copa (mira hacia adelante y hacia arriba: se lee desde la cámara)
+                var panel = Greybox.Flat(Greybox.Prim(PrimitiveType.Quad, cap.transform, Color.white, new Vector3(0f, 0.130f, 0.303f), new Vector3(PanelWidth, PanelHeight, 1f), "Panel de enfrente"));
+                panel.transform.localRotation = Quaternion.Euler(50f, 180f, 0f);
+                Greybox.ApplyTexture(panel, look.Decal, look.Crop(PanelWidth / PanelHeight, 1.15f));
+            }
+            // visera plana de snapback (como las gorras reales de INKCAP): del tono de la copa si es lisa
+            Color visor = !designed ? Greybox.Shade(color, 0.75f) : wrap != null ? Greybox.Hex(design.Visor) : Greybox.Shade(look.Solid, 0.82f);
             Greybox.Prim(PrimitiveType.Cylinder, cap.transform, visor, new Vector3(0f, -0.04f, 0.28f), new Vector3(0.62f, 0.015f, 0.5f), "Visera");
             // parche redondo blanco sobre la visera en gorras con diseño
-            if (tex != null) Greybox.Prim(PrimitiveType.Cylinder, cap.transform, Greybox.Hex(0xF4F4F0), new Vector3(0.12f, -0.02f, 0.4f), new Vector3(0.14f, 0.008f, 0.14f), "Parche");
+            if (designed) Greybox.Prim(PrimitiveType.Cylinder, cap.transform, Greybox.Hex(0xF4F4F0), new Vector3(0.12f, -0.02f, 0.4f), new Vector3(0.14f, 0.008f, 0.14f), "Parche");
             // botón del color del jugador: aunque la copa tenga diseño, se sabe de quién es
-            if (tex != null) Greybox.Prim(PrimitiveType.Sphere, cap.transform, color, new Vector3(0f, 0.2f, 0f), Vector3.one * 0.12f, "Botón");
+            if (designed) Greybox.Prim(PrimitiveType.Sphere, cap.transform, color, new Vector3(0f, 0.2f, 0f), Vector3.one * 0.12f, "Botón");
             return cap;
         }
 
@@ -254,16 +406,82 @@ namespace BoomerangFighters.UnityView
         public Vector3 HeadWorld => Root.transform.position + Vector3.up * (HeadTop * Root.transform.localScale.y);
         public bool Visible => Root.activeSelf;
 
+        /// <summary>
+        /// KO por vacío: en vez de desaparecer, el muñequito se resbala hacia "into" (un punto dentro del hueco),
+        /// se encoge y baja "depth" metros girando. "slide" = resbala todo el tiempo (rueda por la escalera).
+        /// </summary>
+        public void StartFall(Vector3 from, Vector3 into, float depth, bool slide)
+        {
+            _fallFrom = Root.activeSelf ? Root.transform.position : from;
+            _fallFrom.y = 0f;
+            _fallTo = into;
+            _fallDepth = depth;
+            _fallSlide = slide;
+            _fallT = 0f;
+            Root.SetActive(true);
+            _pivot.gameObject.SetActive(true);
+            _pivot.localScale = Vector3.one;
+            _pivot.localPosition = Vector3.zero;
+            _ring.gameObject.SetActive(false);
+            _shield.gameObject.SetActive(false);
+            _aim.gameObject.SetActive(false);
+            _mark.gameObject.SetActive(false);
+        }
+
+        void Fall(float dt)
+        {
+            _fallT += dt;
+            float k = Mathf.Clamp01(_fallT / FallTime);
+            var pos = Vector3.Lerp(_fallFrom, _fallTo, _fallSlide ? k : Mathf.Min(1f, k * 3f));
+            pos.y = -k * k * _fallDepth;
+            var tr = Root.transform;
+            tr.position = pos;
+            tr.localScale = Vector3.one * (BodyScale * (1f - 0.88f * k));
+            tr.Rotate(0f, 630f * dt, 0f, Space.World);
+            _pivot.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(_fallT * 14f) * 20f * (1f - k));
+            if (k >= 1f) EndFall(true);
+        }
+
+        void EndFall(bool hide)
+        {
+            _fallT = -1f;
+            _pivot.localRotation = Quaternion.identity;
+            Root.transform.localScale = Vector3.one * BodyScale;
+            if (hide) Root.SetActive(false);
+            _snap = true;
+        }
+
         public void Sync(PlayerState p, Tuning t, float dt, bool marked)
         {
+            if (_fallT >= 0f)
+            {
+                // En el cliente LAN el evento de KO puede llegar un instante antes que la foto donde ya no está
+                // vivo: el primer cuarto de segundo no se le hace caso a "Alive". Después, vivo = ronda nueva.
+                if (p.Alive && _fallT > 0.25f) EndFall(false);
+                else { Fall(dt); return; }
+            }
             bool benched = p.Benched && !p.Alive;
-            Root.SetActive(p.Alive || benched);
-            if (!p.Alive && !benched) return;
+            if (!p.Alive && !benched)
+            {
+                if (Root.activeSelf) Root.SetActive(false);
+                _snap = true;
+                return;
+            }
+            if (!Root.activeSelf) Root.SetActive(true);
             var target = Greybox.ToUnity(p.Pos, benched ? Greybox.BenchHeight : 0f);
-            // suavizado exponencial: sirve igual a 60 Hz (local) que a 30 Hz (snapshots de red)
-            Root.transform.position = Vector3.Lerp(Root.transform.position, target, 1f - Mathf.Exp(-25f * dt));
-            Root.transform.rotation = Quaternion.Slerp(Root.transform.rotation, benched ? Quaternion.LookRotation(Vector3.back) : Greybox.Facing(p.Facing), 1f - Mathf.Exp(-18f * dt));
-            Root.transform.localScale = Vector3.one * (benched ? 0.9f : 1.15f);
+            var facing = benched ? Quaternion.LookRotation(Vector3.back) : Greybox.Facing(p.Facing);
+            if (_snap)
+            {
+                Root.transform.SetPositionAndRotation(target, facing);
+                _snap = false;
+            }
+            else
+            {
+                // suavizado exponencial: sirve igual a 60 Hz (local) que a 30 Hz (snapshots de red)
+                Root.transform.position = Vector3.Lerp(Root.transform.position, target, 1f - Mathf.Exp(-25f * dt));
+                Root.transform.rotation = Quaternion.Slerp(Root.transform.rotation, facing, 1f - Mathf.Exp(-18f * dt));
+            }
+            Root.transform.localScale = Vector3.one * (benched ? 0.9f : BodyScale);
             float speed01 = benched ? 0f : Mathf.Clamp01(p.Vel.Length / t.Player.Speed);
             _bob += dt * (benched ? 4f : 16f * speed01);
             bool dashing = p.DashT > 0f || p.PushT > 0f;
@@ -495,6 +713,73 @@ namespace BoomerangFighters.UnityView
         public void Destroy() => Greybox.DestroyTree(Root);
     }
 
+    /// <summary>
+    /// Caja DROP de la Pop-up Store: mientras la simulación tiene una caja pendiente (DropPending) se ve
+    /// el aviso en el piso (disco amarillo que parpadea con una sombra que crece) y la caja bajando del
+    /// techo. El golpe, el polvo y el temblor los pone FxDirector con el evento DropLand.
+    /// </summary>
+    public sealed class DropBoxView
+    {
+        public readonly GameObject Root;
+        readonly Transform _warn, _shadow, _box;
+        readonly Renderer _warnR;
+        float _t;
+        bool _was;
+        const float FallFrom = 7f, Size = 0.95f; // cae de 7 m: se alcanza a ver bajar más de medio segundo aunque caiga al fondo de la tienda
+
+        public DropBoxView()
+        {
+            Root = new GameObject("Caja DROP");
+            // van un poco arriba de charcos, manchas y aros para que el aviso nunca quede tapado
+            var warn = Greybox.Flat(Greybox.Prim(PrimitiveType.Cylinder, Root.transform, Greybox.Hex(BrandArt.Yellow), new Vector3(0f, 0.034f, 0f), Vector3.one, "Aviso"));
+            _warn = warn.transform;
+            _warnR = warn.GetComponent<Renderer>();
+            _shadow = Greybox.Flat(Greybox.Prim(PrimitiveType.Cylinder, Root.transform, Greybox.Hex(0x0B0A10), new Vector3(0f, 0.04f, 0f), Vector3.one, "Sombra")).transform;
+            _box = new GameObject("Caja").transform;
+            _box.SetParent(Root.transform, false);
+            Greybox.Prim(PrimitiveType.Cube, _box, Greybox.Hex(0xC89B5A), Vector3.zero, Vector3.one * Size, "Cartón");
+            Greybox.Prim(PrimitiveType.Cube, _box, Greybox.Hex(Greybox.Ink), Vector3.zero, new Vector3(Size + 0.02f, Size + 0.02f, 0.16f), "Cinta");
+            // etiqueta "DROP" acostada sobre la tapa (es la cara que ve la cámara)
+            var label = BrandArt.Marquee("DROP", null, false, Greybox.Bone, Greybox.Ink, Greybox.Magenta);
+            float lw = Size * 0.8f, lh = lw / BrandArt.Aspect(label);
+            var tag = Greybox.Flat(Greybox.Prim(PrimitiveType.Quad, _box, Color.white, new Vector3(0f, Size / 2f + 0.012f, -Size * 0.27f), new Vector3(lw, lh, 1f), "Etiqueta DROP"));
+            tag.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            Greybox.ApplyTexture(tag, label);
+            Root.SetActive(false);
+        }
+
+        public void Sync(MatchSimulation sim, float dt, float time)
+        {
+            var def = sim.Arena.Def.Drop;
+            bool on = def != null && sim.DropPending && sim.Phase == MatchPhase.Play;
+            if (!on)
+            {
+                if (Root.activeSelf) Root.SetActive(false);
+                _was = false;
+                return;
+            }
+            // reloj propio y suave: en el cliente LAN DropT llega 30 veces por segundo (se corrige si se desfasa)
+            if (!_was || Mathf.Abs(_t - sim.DropT) > 0.12f) _t = sim.DropT;
+            else if (sim.FreezeTicks <= 0) _t = Mathf.Max(0f, _t - dt);
+            _was = true;
+            if (!Root.activeSelf) Root.SetActive(true);
+            float radius = def.Radius;
+            float k = Mathf.Clamp01(1f - _t / Mathf.Max(0.05f, def.Warn)); // 0 = acaba de salir el aviso, 1 = cae
+            Root.transform.position = Greybox.ToUnity(sim.DropPos);
+            // el disco amarillo marca TODA la zona que noquea; la sombra crece adentro hasta casi llenarlo
+            _warn.localScale = new Vector3(radius * 2f, 0.002f, radius * 2f);
+            float shadow = Mathf.Lerp(0.25f, 0.9f, k) * radius;
+            _shadow.localScale = new Vector3(shadow * 2f, 0.002f, shadow * 2f);
+            bool blink = Mathf.Sin(time * Mathf.Lerp(14f, 44f, k)) > 0f; // parpadea más rápido al final
+            _warnR.material.color = blink ? Color.white : Greybox.Hex(BrandArt.Yellow);
+            // la caja acelera como si cayera de verdad y llega al piso justo cuando DropT = 0
+            _box.localPosition = new Vector3(0f, Size / 2f + FallFrom * (1f - k * k), 0f);
+            _box.localRotation = Quaternion.Euler(0f, time * 80f, Mathf.Sin(time * 9f) * 6f * (1f - k));
+        }
+
+        public void Destroy() => Greybox.DestroyTree(Root);
+    }
+
     /// <summary>Mantiene una vista por entidad y las sincroniza con la simulación cada cuadro.</summary>
     public sealed class WorldView
     {
@@ -509,6 +794,7 @@ namespace BoomerangFighters.UnityView
         readonly HashSet<int> _marked = new HashSet<int>();
         readonly List<int> _remove = new List<int>();
         HotCanView _hotCan;
+        DropBoxView _drop;
         MatchSimulation _sim;
 
         /// <summary>outfitFor(i) da la playera y la gorra del jugador i (null = sin diseño).</summary>
@@ -524,6 +810,48 @@ namespace BoomerangFighters.UnityView
                 _toys.Add(new ToyView(p, o));
             }
             _hotCan = new HotCanView();
+            if (sim.Arena.Def.Drop != null) _drop = new DropBoxView(); // solo la Pop-up Store tiene caja DROP
+        }
+
+        /// <summary>
+        /// Eventos de la simulación que cambian cómo se dibuja algo (los mismos en local, anfitrión y cliente).
+        /// KO por vacío: el muñequito cae dentro del hueco en vez de solo desaparecer.
+        /// </summary>
+        public void Handle(IReadOnlyList<SimEvent> events)
+        {
+            if (_sim == null || events == null) return;
+            for (int i = 0; i < events.Count; i++)
+            {
+                var e = events[i];
+                if (e.Type != SimEventType.KO || (KoCause)e.Extra != KoCause.Vacio) continue;
+                if (e.A < 0 || e.A >= _toys.Count) continue;
+                StartFall(_toys[e.A], e.Pos);
+            }
+        }
+
+        void StartFall(ToyView toy, Vec2 pos)
+        {
+            // el vacío más cercano a donde cayó (el evento trae la posición, no cuál hueco)
+            var pits = _sim.Arena.Def.Pits;
+            int best = -1;
+            float bestD = float.MaxValue;
+            for (int i = 0; i < pits.Length; i++)
+            {
+                float d = pits[i].Distance(pos);
+                if (d < bestD) { bestD = d; best = i; }
+            }
+            var into = pos;
+            bool stairs = false;
+            if (best >= 0)
+            {
+                // se resbala hacia adentro para no atravesar la orilla al hundirse
+                var pit = pits[best];
+                float mx = Mathf.Max(0f, pit.w / 2f - 0.55f), my = Mathf.Max(0f, pit.d / 2f - 0.55f);
+                into = new Vec2(Mathf.Clamp(pos.x, pit.x - mx, pit.x + mx), Mathf.Clamp(pos.y, pit.y - my, pit.y + my));
+                stairs = pit.Kind == "escalera";
+                if (stairs) into.y = pit.y + my; // rueda escalera abajo: el fondo queda del lado de la cámara
+            }
+            toy.StartFall(Greybox.ToUnity(pos), Greybox.ToUnity(into), stairs ? 2.6f : 3.4f, stairs);
         }
 
         public Vector3 PlayerPosition(int id) => id >= 0 && id < _toys.Count ? _toys[id].Root.transform.position : Vector3.zero;
@@ -542,6 +870,7 @@ namespace BoomerangFighters.UnityView
             int holder = _sim.HotCanHolder;
             bool can = _sim.Mode == GameMode.LataCaliente && holder >= 0 && holder < _toys.Count && _sim.Players[holder].Alive;
             _hotCan.Sync(can, can ? _toys[holder].HeadWorld : Vector3.zero, _sim.HotCanTimer, dt);
+            _drop?.Sync(_sim, dt, time);
 
             _seen.Clear();
             foreach (var c in _sim.Caps)
@@ -606,6 +935,7 @@ namespace BoomerangFighters.UnityView
             foreach (var w in _walls.Values) w.Destroy();
             _walls.Clear();
             _hotCan?.Destroy(); _hotCan = null;
+            _drop?.Destroy(); _drop = null;
             _sim = null;
         }
     }

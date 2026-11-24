@@ -4,6 +4,8 @@
 // La Reta, letreros de KO de la spec A8 (¡GORRAZO!, ¡DE REGRESO!,
 // ¡DE BANDA!, ¡TE LA REGRESO!, ¡ZAZ!, ¡ZAP!, ¡SPLASH!, ¡TIRAJE!) y
 // ¡EMPATE!, emote local y controles táctiles.
+// v0.3: ¡AL VACÍO! y ¡DROP! (los textos salen de KoCauseInfo.Label) y
+// el aviso ¡CAJA! cuando sale la sombra de la caja DROP en la tienda.
 // Los menús, el vestidor y los resultados viven en GameMenu.
 // La UI final (con el arte de la marca) se hará con UI Toolkit o uGUI.
 // ─────────────────────────────────────────────────────────────
@@ -57,10 +59,17 @@ namespace BoomerangFighters.UnityView
                     case SimEventType.KO:
                     {
                         var cause = (KoCause)e.Extra;
-                        string sub = e.B >= 0 && e.B != e.A ? $"{NameOf(e.B)} noqueó a {NameOf(e.A)}" : $"{NameOf(e.A)} quedó fuera";
+                        bool credit = e.B >= 0 && e.B != e.A;
+                        string sub;
+                        if (cause == KoCause.Vacio) sub = credit ? $"{NameOf(e.B)} tiró a {NameOf(e.A)} al vacío" : $"{NameOf(e.A)} se cayó al vacío";
+                        else if (cause == KoCause.Drop) sub = $"A {NameOf(e.A)} le cayó la caja";
+                        else sub = credit ? $"{NameOf(e.B)} noqueó a {NameOf(e.A)}" : $"{NameOf(e.A)} quedó fuera";
                         Banner(KoCauseInfo.Label(cause), sub, e.B >= 0 ? ColorOf(e.B) : Greybox.Hex(Greybox.Magenta), 1.0f, 3);
                         break;
                     }
+                    case SimEventType.DropWarn:
+                        Banner("¡CAJA!", "Viene una caja DROP: sal de la sombra", UiSkin.Gold, Mathf.Clamp(e.Value, 0.8f, 1.5f), 2);
+                        break;
                     case SimEventType.RoundEnd:
                     {
                         var reason = (RoundEndReason)e.Extra;

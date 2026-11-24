@@ -162,9 +162,11 @@ export const POWERUPS = {
 
 export const DIFFICULTY = {
   // deflectChance: probabilidad de intentar "Te la regreso" (spec D)
-  facil: { label: 'Fácil', reaction: 0.55, aimError: 0.32, dodgeChance: 0.18, throwRate: 0.9, lead: 0.3, deflectChance: 0.15 },
-  normal: { label: 'Normal', reaction: 0.32, aimError: 0.16, dodgeChance: 0.45, throwRate: 1.4, lead: 0.75, deflectChance: 0.35 },
-  dificil: { label: 'Difícil', reaction: 0.17, aimError: 0.07, dodgeChance: 0.75, throwRate: 2.1, lead: 1.0, deflectChance: 0.6 },
+  // pitHunt / pitShoveChance (v0.3): sin gorra, alcance (m) al que buscan al rival que un empujón
+  // dejaría dentro de un vacío, y probabilidad de soltar el empujón al estar en posición
+  facil: { label: 'Fácil', reaction: 0.55, aimError: 0.32, dodgeChance: 0.18, throwRate: 0.9, lead: 0.3, deflectChance: 0.15, pitHunt: 6, pitShoveChance: 0.3 },
+  normal: { label: 'Normal', reaction: 0.32, aimError: 0.16, dodgeChance: 0.45, throwRate: 1.4, lead: 0.75, deflectChance: 0.35, pitHunt: 9, pitShoveChance: 1 },
+  dificil: { label: 'Difícil', reaction: 0.17, aimError: 0.07, dodgeChance: 0.75, throwRate: 2.1, lead: 1.0, deflectChance: 0.6, pitHunt: 9, pitShoveChance: 1 },
 };
 
 // ── Modos de juego (spec C) ───────────────────────────────────
@@ -176,12 +178,13 @@ export const MODES = {
 };
 
 // Interruptores de reglas (spec A2–A4 y B). Se guardan en el celular.
-export const DEFAULT_RULES = { suddenDeath: true, shove: true, deflectReturn: true, graffitiWall: true };
+export const DEFAULT_RULES = { suddenDeath: true, shove: true, deflectReturn: true, graffitiWall: true, powerUps: true };
 export const RULE_INFO = {
   suddenDeath: { name: 'Muerte súbita', desc: 'A los 20 s los muros de los lados se cierran y empujan; a los 45 s es empate.' },
   shove: { name: 'Empujón', desc: 'Sin gorra, el golpe no noquea: empuja 2.5 m (y patea gorras caídas). [A PRUEBA]' },
   deflectReturn: { name: 'Te la regreso', desc: 'Golpear una gorra rival la regresa a su dueño y puede noquearlo. [A PRUEBA]' },
   graffitiWall: { name: 'Muro de Tag', desc: 'La lata de Grafiti pinta un muro que bloquea 3 s. Apagado: rastro que alenta.' },
+  powerUps: { name: 'Latas de técnica', desc: 'Aparecen latas con poderes en la arena. Apagado: puro gorrazo.' },
 };
 
 // "Regla del día" del Reto del Día (se elige con la semilla AAAAMMDD)

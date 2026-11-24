@@ -16,7 +16,7 @@ const ARENAS = ['callejon', 'museo', 'azotea', 'popup'].filter((a) => !only.leng
 const browser = await pw.chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const errors = [];
 const url = pathToFileURL(resolve('dist/index.html')).href;
-const MAX_CALLS = 420; // tope de llamadas de dibujo por cuadro con 4 jugadores
+const MAX_CALLS = 330; // tope de llamadas de dibujo por cuadro con 4 jugadores (en reposo, sin partículas)
 
 async function shots(tag, ctxOpts) {
   const ctx = await browser.newContext(ctxOpts);
@@ -42,15 +42,19 @@ async function shots(tag, ctxOpts) {
     // a media ronda: gorras volando, manchas de tinta y (en la tienda) la sombra de la caja DROP
     const info = await page.evaluate((arena) => {
       const g = window.__game;
-      const stop = arena === 'popup' ? 60 * 7.4 : 60 * 9;
-      for (let i = 0; i < stop && g.state !== 'matchEnd'; i += 30) { g.fastForward(30); if (arena === 'popup' && g.drop && g.playT > 7.3) break; }
+      // se detiene en plena ronda: con 2 KOs ya pintados (o, en la tienda, con la sombra de la caja puesta)
+      const listo = () => (arena === 'popup' ? g.drop && g.playT > 7.25 : (g.eventCounts.KO || 0) >= 2 && g.playT > 5);
+      for (let i = 0; i < 3000 && g.state !== 'matchEnd'; i++) { g.fastForward(4); if (g.state === 'play' && listo()) break; }
       g._visuals(0.016);
       g.renderer.info.autoReset = true;
       return { state: g.state, playT: +g.playT.toFixed(2), ko: g.eventCounts.KO || 0, drop: !!g.drop };
     }, arena);
     await page.waitForTimeout(400);
-    const calls = await page.evaluate(() => { const i = window.__game.renderer.info; return { calls: i.render.calls, tris: i.render.triangles, geos: i.memory.geometries, texs: i.memory.textures }; });
     await page.screenshot({ path: `${OUT}/${tag}-${arena}-juego.png` });
+    // costo "en reposo": se dejan caer las piezas y partículas del último KO y se mide un cuadro
+    await page.evaluate(() => { window.__game._fx(4); });
+    await page.waitForTimeout(250);
+    const calls = await page.evaluate(() => { const i = window.__game.renderer.info; return { calls: i.render.calls, tris: i.render.triangles, geos: i.memory.geometries, texs: i.memory.textures }; });
     console.log(`${tag} ${arena}:`, JSON.stringify({ ...info, ...calls }));
     if (calls.calls > MAX_CALLS) errors.push(`${tag} ${arena}: ${calls.calls} llamadas de dibujo (tope ${MAX_CALLS})`);
     await page.evaluate(() => { window.__game.debugSpeed = 1; window.__ui.quitToMenu(); window.__ui.autopilot = false; });

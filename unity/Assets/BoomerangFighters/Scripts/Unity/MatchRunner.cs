@@ -26,7 +26,7 @@ namespace BoomerangFighters.UnityView
     {
         [Header("Partida")]
         public GameMode GameMode = GameMode.Gorrazo;
-        [Tooltip("callejon, museo, azotea o aleatorio")] public string ArenaId = "callejon";
+        [Tooltip("callejon, museo, azotea, popup o aleatorio")] public string ArenaId = "callejon";
         [Range(1, 9)] public int PointsToWin = 5;
         [Range(1, 2)] public int Humans = 1;
         [Range(0, 7)] public int Bots = 3;
@@ -321,7 +321,7 @@ namespace BoomerangFighters.UnityView
         {
             if (Sim == null || i < 0 || i >= Sim.Config.Slots.Count) return default;
             DesignLibrary.UnpackOutfit(Sim.Config.Slots[i].Shirt, out var shirt, out var cap);
-            return new Outfit { Shirt = DesignLibrary.Shirt(shirt).Texture, Cap = DesignLibrary.Cap(cap) };
+            return new Outfit { Shirt = DesignLibrary.Shirt(shirt), Cap = DesignLibrary.Cap(cap) };
         }
 
         // ── Bucle ────────────────────────────────────────────
@@ -388,6 +388,7 @@ namespace BoomerangFighters.UnityView
 
         void Dispatch(IReadOnlyList<SimEvent> events)
         {
+            _world.Handle(events); // p. ej. la caída al vacío: el muñequito baja al hueco en vez de desaparecer
             _fx.Handle(events);
             SimEvents?.Invoke(events);
         }

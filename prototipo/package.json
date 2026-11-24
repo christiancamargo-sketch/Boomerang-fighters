@@ -9,7 +9,8 @@
     "test": "node pruebas/smoke.mjs",
     "test:movil": "node pruebas/movil.mjs",
     "test:reglas": "node pruebas/reglas.mjs",
-    "test:todo": "node pruebas/smoke.mjs && node pruebas/movil.mjs && node pruebas/reglas.mjs",
+    "test:sin-marca": "node pruebas/sin-marca.mjs",
+    "test:todo": "node pruebas/smoke.mjs && node pruebas/movil.mjs && node pruebas/reglas.mjs && node pruebas/sin-marca.mjs",
     "capturas": "node pruebas/arenas.mjs",
     "balance": "node pruebas/balance.mjs"
   },

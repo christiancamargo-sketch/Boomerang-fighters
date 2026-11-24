@@ -1,6 +1,9 @@
 // ─────────────────────────────────────────────────────────────
 // "GAME FEEL": reacciona a los SimEvent con partículas, manchas de
 // tinta en el piso, temblor de cámara y sonido (opcional).
+// v0.3: caída al vacío (polvito en la orilla y gotas que se van al
+// hueco, sin mancha ni explosión) y caja DROP (aviso, golpe con polvo,
+// pedazos de cartón y temblor).
 // Todo es presentación: nunca cambia el resultado de la partida.
 // ─────────────────────────────────────────────────────────────
 using System.Collections.Generic;
@@ -13,11 +16,13 @@ namespace BoomerangFighters.UnityView
     public sealed class SfxClips
     {
         public AudioClip Throw, Catch, Ko, Clank, Dash, Pickup, Explode, Beep, Win;
+        [Tooltip("v0.3 (opcionales). Sin clip: Fall usa Ko, DropWarn usa Beep y DropLand usa Explode")]
+        public AudioClip Fall, DropWarn, DropLand;
     }
 
     public sealed class FxDirector
     {
-        sealed class Particle { public Transform T; public Vector3 V; public float Life, Max, Size, Gravity; }
+        sealed class Particle { public Transform T; public Vector3 V; public float Life, Max, Size, Gravity; public bool Sinks; }
 
         readonly Transform _root;
         readonly List<Particle> _live = new List<Particle>();
@@ -45,11 +50,35 @@ namespace BoomerangFighters.UnityView
                 switch (e.Type)
                 {
                     case SimEventType.KO:
+                        if ((KoCause)e.Extra == KoCause.Vacio)
+                        {
+                            // V7: no explota ni mancha el piso; el muñequito cae (WorldView) y aquí va el "fuuu"
+                            Burst(Greybox.ToUnity(e.Pos, 0.2f), Greybox.Hex(Greybox.Bone), 8, 2.5f, 0.09f);
+                            Sink(Greybox.ToUnity(e.Pos, 0.4f), pc, 10);
+                            Shake = Mathf.Max(Shake, 0.27f);
+                            Play(_clips.Fall != null ? _clips.Fall : _clips.Ko);
+                            break;
+                        }
                         Burst(pos, pc, 26, 8f);
                         Splat(e.Pos, 1.1f, pc);
                         Shake = Mathf.Max(Shake, 0.45f);
                         Play(_clips.Ko);
                         break;
+                    // ── v0.3: caja DROP (Pop-up Store) ──
+                    case SimEventType.DropWarn:
+                        Play(_clips.DropWarn != null ? _clips.DropWarn : _clips.Beep);
+                        break;
+                    case SimEventType.DropLand:
+                    {
+                        float radius = e.Value > 0f ? e.Value : 1.1f;
+                        Ring(e.Pos, radius, Greybox.Hex(0xD9D2C4), 18);                                     // polvo que sale rasante
+                        Burst(Greybox.ToUnity(e.Pos, 0.3f), Greybox.Hex(0xD9D2C4), 14, 5f, 0.14f);          // polvo
+                        Burst(Greybox.ToUnity(e.Pos, 0.5f), Greybox.Hex(0xC89B5A), 12, 7f, 0.16f);          // pedazos de cartón
+                        if (e.Extra != 0) Burst(Greybox.ToUnity(e.Pos, 0.6f), Greybox.Hex(PowerUpInfo.Color((PowerUp)e.Extra)), 8, 4f, 0.1f); // deja una lata
+                        Shake = Mathf.Max(Shake, 0.5f);
+                        Play(_clips.DropLand != null ? _clips.DropLand : _clips.Explode);
+                        break;
+                    }
                     case SimEventType.Clank:
                     case SimEventType.Deflect:
                         Burst(Greybox.ToUnity(e.Pos, 1.05f), new Color(1f, 0.96f, 0.6f), 10, 6f, 0.05f);
@@ -133,6 +162,32 @@ namespace BoomerangFighters.UnityView
             }
         }
 
+        /// <summary>Gotas que caen DENTRO de un vacío: no rebotan en el piso, siguen bajando hasta perderse.</summary>
+        public void Sink(Vector3 at, Color c, int n)
+        {
+            for (int i = 0; i < n && _live.Count < 300; i++)
+            {
+                var go = Take(c);
+                go.transform.position = at;
+                var v = Random.insideUnitSphere * 1.2f;
+                v.y = Random.Range(0.5f, 2.5f);
+                _live.Add(new Particle { T = go.transform, V = v, Life = Random.Range(0.5f, 0.8f), Max = 0.8f, Size = 0.12f * Random.Range(0.7f, 1.5f), Gravity = 22f, Sinks = true });
+            }
+        }
+
+        /// <summary>Anillo de polvo que sale rasante desde la orilla de un círculo (la caja DROP al caer).</summary>
+        public void Ring(Vec2 center, float radius, Color c, int n)
+        {
+            for (int i = 0; i < n && _live.Count < 300; i++)
+            {
+                float a = (i + Random.value) / n * Mathf.PI * 2f;
+                var dir = new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a));
+                var go = Take(c);
+                go.transform.position = Greybox.ToUnity(center, 0.15f) + dir * (radius * 0.6f);
+                _live.Add(new Particle { T = go.transform, V = dir * Random.Range(3.5f, 6f) + Vector3.up * Random.Range(0.4f, 1.4f), Life = Random.Range(0.35f, 0.6f), Max = 0.6f, Size = 0.2f * Random.Range(0.7f, 1.3f), Gravity = 6f });
+            }
+        }
+
         /// <summary>Mancha de tinta en el piso: un disco principal + gotitas (el escenario se vuelve mural).</summary>
         public void Splat(Vec2 at, float radius, Color c)
         {
@@ -159,7 +214,7 @@ namespace BoomerangFighters.UnityView
                 p.Life -= dt;
                 p.V.y -= p.Gravity * dt;
                 p.T.position += p.V * dt;
-                if (p.T.position.y < 0.05f) { var pos = p.T.position; pos.y = 0.05f; p.T.position = pos; p.V = new Vector3(p.V.x * 0.6f, -p.V.y * 0.3f, p.V.z * 0.6f); }
+                if (!p.Sinks && p.T.position.y < 0.05f) { var pos = p.T.position; pos.y = 0.05f; p.T.position = pos; p.V = new Vector3(p.V.x * 0.6f, -p.V.y * 0.3f, p.V.z * 0.6f); }
                 p.T.localScale = Vector3.one * (p.Size * Mathf.Max(0f, p.Life / p.Max));
                 if (p.Life <= 0f) { p.T.gameObject.SetActive(false); _pool.Push(p.T.gameObject); _live.RemoveAt(i); }
             }

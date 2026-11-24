@@ -97,7 +97,7 @@ await page.click('#scr-wardrobe >> text=Listo');
 // ── Reglas ────────────────────────────────────────────────────
 await page.click('text=REGLAS');
 await page.waitForTimeout(200);
-check(await page.locator('#rules-list .switch').count() === 4, 'pantalla de reglas con 4 interruptores');
+check(await page.locator('#rules-list .switch').count() === 5, 'pantalla de reglas con 5 interruptores');
 await page.click('[data-rule="shove"]');
 const r1 = await page.evaluate(() => JSON.parse(localStorage.getItem('gorrazo.rules.v1')));
 check(r1.shove === false && r1.suddenDeath === true, 'interruptor guardado en localStorage');

@@ -876,7 +876,8 @@ export function hangingShirtTexture(id) {
 // Playeras reales de INKCAP para decorar (Basic + artistas); si no hay marca, las de ejemplo.
 export function brandShirtIds() {
   const ids = Object.keys(SHIRT_DESIGNS).filter((k) => SHIRT_DESIGNS[k].url);
-  return ids.length ? ids : ['basica-negra', 'tinta-derramada', 'serigrafia-retro', 'neon-grafiti'];
+  // sin diseños de artistas se completa con las playeras de ejemplo (que no se vea todo igual)
+  return ids.length >= 3 ? ids : [...ids, 'tinta-derramada', 'serigrafia-retro', 'neon-grafiti', 'sticker-bomb'];
 }
 export function brandCapIds() {
   const ids = Object.keys(CAP_DESIGNS).filter((k) => CAP_DESIGNS[k].url);

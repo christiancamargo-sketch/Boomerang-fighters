@@ -12,7 +12,7 @@
 // texto o colores lisos (no se inventan logos).
 // ─────────────────────────────────────────────────────────────
 import * as THREE from 'three';
-import { GEO } from './geo.js';
+import { GEO, faceBox } from './geo.js';
 import { buildCap } from './characters.js';
 import { MARCA } from './marca.js';
 import {
@@ -101,19 +101,38 @@ function artPanel(ctx, a, x, y, size, { caption = true, paper = BONE, ink = INK 
 }
 
 // ── Utilería 3D compartida ───────────────────────────────────
-// Gorra de exhibición: la misma gorra del juego sin el contorno (menos mallas).
+// Gorra de exhibición: la misma gorra del juego sin el contorno y con los materiales
+// compartidos por diseño y color (copa, visera y botón de una gorra real son del mismo
+// color → un solo material), para que al fundir lo estático queden 2 o 3 mallas por diseño.
 function displayCap(A, id, parent, x, y, z, s = 1, rotY = 0) {
   const cap = buildCap(0x222222, id);
+  A._capMats ||= new Map();
   const drop = [];
   cap.traverse((o) => {
     if (!o.isMesh) return;
-    if (o.material.side === THREE.BackSide) drop.push(o); else A.own(o.material);
+    const m = o.material;
+    if (m.side === THREE.BackSide) { drop.push(o); return; }
+    const key = `${id}|${m.map ? m.map.uuid : m.color.getHex()}|${m.transparent ? 1 : 0}`;
+    if (!A._capMats.has(key)) A._capMats.set(key, A.own(m)); else m.dispose();
+    o.material = A._capMats.get(key);
   });
   for (const o of drop) o.parent.remove(o);
+  // la gorra se aplana a mallas sueltas (sin hijos) para que se puedan fundir
   cap.position.set(x, y, z);
   cap.scale.setScalar(s);
   cap.rotation.y = rotY;
   parent.add(cap);
+  cap.updateMatrixWorld(true);
+  const flat = [];
+  cap.traverse((o) => { if (o.isMesh) flat.push(o); });
+  for (const o of flat) {
+    o.updateWorldMatrix(true, false);
+    const m = new THREE.Mesh(o.geometry, o.material);
+    parent.updateWorldMatrix(true, false);
+    m.applyMatrix4(new THREE.Matrix4().copy(parent.matrixWorld).invert().multiply(o.matrixWorld));
+    parent.add(m);
+  }
+  parent.remove(cap);
   return cap;
 }
 
@@ -310,7 +329,7 @@ const OBSTACLES = {
     }
   },
   // mesa de gorras (baja: las gorras del juego pasan por encima)
-  mesa(A, o, g) {
+  table(A, o, g) {
     A.box(o.w * 0.9, o.h - 0.1, o.d * 0.84, 0x1b1a1f, 0, 0, 0, g);
     A.box(o.w, 0.1, o.d, 0xd9bd92, 0, o.h - 0.1, 0, g);
     A.add(GEO.box, A.glow(LIME_HEX), 0, o.h - 0.13, 0, o.w + 0.03, 0.035, o.d + 0.03, g);
@@ -675,9 +694,9 @@ const museo = {
     sticker(A, logoStickerTexture(INK, null), v, 0, 0.45, 1.76, 1.5, 0.47);
     halo(A, v, 0, 1.7, 0.4, 5.4, 0xfff0c8, 0.26);
     // escultura de art toy gigante con gorra INKCAP (sala derecha)
-    const b = new THREE.Group(); b.position.set(gx - 0.1, 0, gz); A.group.add(b);
-    A.box(1.8, 0.7, 1.8, 0xf4f1ea, 0, 0, 0, b);
-    A.box(1.9, 0.08, 1.9, 0xb08d57, 0, 0.7, 0, b);
+    const b = new THREE.Group(); b.position.set(gx - 0.2, 0, gz); A.group.add(b);
+    A.box(1.6, 0.7, 1.8, 0xf4f1ea, 0, 0, 0, b);
+    A.box(1.7, 0.08, 1.9, 0xb08d57, 0, 0.7, 0, b);
     A.add(GEO.sphere, 0xf7f7f2, 0, 1.52, 0, 0.84, 0.76, 0.8, b);
     for (const sx of [-1, 1]) A.add(GEO.sphere, A.glow(0x111111), sx * 0.27, 1.54, 0.74, 0.115, 0.165, 0.075, b);
     displayCap(A, ids[1 % ids.length], b, 0, 1.82, 0, 2.42);
@@ -845,7 +864,7 @@ const azotea = {
       tx.repeat.set(len / (W + t * 2), 1);
       tx.offset.set(sx < 0 ? 0 : 1 - len / (W + t * 2), 0);
       tx.needsUpdate = true;
-      const m = new THREE.Mesh(GEO.box, [cap, cap, top, cap, A.tmat(tx), cap]);
+      const m = new THREE.Mesh(faceBox(4), [A.tmat(tx), top, cap]);
       m.scale.set(len, wl.back, t);
       m.position.set(sx * (gap + len / 2), wl.back / 2, -H / 2 - t / 2);
       A.group.add(m);
@@ -857,7 +876,7 @@ const azotea = {
       const tx = A.own(sideTex.clone());
       tx.wrapS = THREE.RepeatWrapping; tx.repeat.set(H / 13, 1); tx.needsUpdate = true;
       const inner = A.tmat(tx);
-      const m = new THREE.Mesh(GEO.box, sx < 0 ? [inner, cap, top, cap, cap, cap] : [cap, inner, top, cap, cap, cap]);
+      const m = new THREE.Mesh(faceBox(sx < 0 ? 0 : 1), [inner, top, cap]);
       m.scale.set(t, wl.side, H);
       m.position.set(sx * (W / 2 + t / 2), wl.side / 2, 0);
       A.group.add(m);
@@ -914,7 +933,7 @@ const azotea = {
     bb.rotation.x = -0.4; // recargado hacia atrás: se lee mejor desde la cámara
     const tex = A.signCanvas(bbW, bbH, 1024, 350, (ctx, cw, ch) => this.paintBillboard(ctx, cw, ch));
     const frame = A.mat(0x1c1b20);
-    const panel = new THREE.Mesh(GEO.box, [frame, frame, frame, frame, A.glow(0xffffff, { map: tex }), frame]);
+    const panel = new THREE.Mesh(faceBox(4), [A.glow(0xffffff, { map: tex }), frame, frame]);
     panel.scale.set(bbW, bbH, 0.14); panel.position.y = bbH / 2 + 0.12;
     bb.add(panel);
     for (const sx of [-1, 1]) A.box(0.14, 0.2, 0.14, 0x1c1b20, sx * (bbW / 2 - 0.5), 0, 0, bb);
@@ -936,6 +955,7 @@ const azotea = {
     for (let i = 0; i < n; i++) {
       const x = x0 + 0.85 + i * (x1 - x0 - 1.7) / (n - 1);
       const p = hangShirt(A, ids[i % ids.length], A.group, x, yT - 0.06, zT + 0.02, 1.42, -0.42);
+      p.userData.dyn = true; // se mece con el viento: no se funde con lo estático
       A.anims.push((t) => { p.rotation.x = -0.42 + Math.sin(t * 1.6 + i * 1.3) * 0.07; p.rotation.z = Math.sin(t * 1.1 + i) * 0.03; });
     }
     // antena, parabólica y macetas en los pretiles
