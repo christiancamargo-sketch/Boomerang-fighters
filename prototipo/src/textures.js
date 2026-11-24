@@ -591,6 +591,7 @@ export function registerBrandDesigns() {
     CAP_DESIGNS[id] = {
       name, price, rarity: price ? 'Gorra real INKCAP · $499 en tienda' : 'Gorra real INKCAP · de inicio',
       visor: parseInt(crown.slice(1), 16), button: parseInt(crown.slice(1), 16), patch: true, url: TIENDA_URL,
+      crown: parseInt(crown.slice(1), 16), ink,
       paint(ctx, W, H) {
         ctx.fillStyle = crown; ctx.fillRect(0, 0, W, H);
         const mark = tintedLogo(ink, 92);
@@ -609,6 +610,11 @@ export function registerBrandDesigns() {
   }
   SHIRT_DESIGNS['inkcap-basic-negra'] = {
     name: 'INKCAP Basic Negra', price: 0, rarity: 'Playera real INKCAP · de inicio', url: TIENDA_URL,
+    fabric: '#141414',
+    print(ctx, W, H) {
+      const mark = tintedLogo('#f2f2f2', Math.round(W * 0.86));
+      if (mark) ctx.drawImage(mark, W / 2 - mark.width / 2, H * 0.42 - mark.height / 2);
+    },
     paint(ctx, W, H) {
       ctx.fillStyle = '#141414'; ctx.fillRect(0, 0, W, H);
       const mark = tintedLogo('#f2f2f2', 120);
@@ -622,6 +628,16 @@ export function registerBrandDesigns() {
     if (!a.imgEl) continue;
     SHIRT_DESIGNS[`artista-${a.id}`] = {
       name: a.name, price: 450, rarity: `Artista · ${a.artist} · $${a.price} en tienda`, url: a.tienda || TIENDA_URL, artist: a.artist,
+      fabric: a.fabric,
+      print(ctx, W, H) {
+        // el recorte de la foto se funde con la tela con un borde suave (como tinta de serigrafía)
+        ctx.drawImage(a.imgEl, 0, 0, W, H);
+        ctx.globalCompositeOperation = 'destination-in';
+        const g = ctx.createRadialGradient(W / 2, H / 2, W * 0.4, W / 2, H / 2, W * 0.52);
+        g.addColorStop(0, 'rgba(0,0,0,1)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+        ctx.globalCompositeOperation = 'source-over';
+      },
       paint(ctx, W, H) {
         ctx.fillStyle = a.fabric; ctx.fillRect(0, 0, W, H);
         const side = W * 0.62;
@@ -638,4 +654,48 @@ export function registerBrandDesigns() {
   brandFirst(SHIRT_DESIGNS, (d) => !!d.url);
   _shirtCache.clear();
   _capCache.clear();
+}
+
+
+// ── Cómo se ve la ropa EN el muñequito ───────────────────────
+// Playeras con estampado (productos reales): tela lisa + estampado como
+// calcomanía al frente y atrás (no se estira). Las de patrón (cuadros,
+// camuflaje…) siguen envolviendo el cuerpo.
+const SOLID_FABRIC = { 'basica-blanca': '#f2f2ee', 'basica-negra': '#1c1c1f' };
+const _printCache = new Map();
+export function shirtLook(id) {
+  const def = SHIRT_DESIGNS[id] || SHIRT_DESIGNS['basica-blanca'];
+  const fabric = def.fabric || SOLID_FABRIC[id] || null;
+  if (def.print) {
+    if (!_printCache.has(id)) {
+      const c = makeCanvas(256, 256);
+      def.print(c.getContext('2d'), 256, 256);
+      _printCache.set(id, toCanvasTexture(c));
+    }
+    return { fabric, wrap: null, print: _printCache.get(id) };
+  }
+  if (fabric) return { fabric, wrap: null, print: null };
+  return { fabric: null, wrap: shirtTexture(id), print: null };
+}
+
+// Logo de gorra (calcomanía del panel de enfrente, fondo transparente)
+const _capLogoCache = new Map();
+export function capLogoTexture(id) {
+  const def = CAP_DESIGNS[id];
+  if (!def || !def.ink) return null;
+  if (_capLogoCache.has(id)) return _capLogoCache.get(id);
+  const c = makeCanvas(256, 128);
+  const ctx = c.getContext('2d');
+  const mark = tintedLogo(def.ink, 224);
+  const shadow = tintedLogo('rgba(0,0,0,0.45)', 224);
+  if (mark) {
+    const y = 64 - mark.height / 2;
+    ctx.drawImage(shadow, 16 + 4, y + 4); // relieve del bordado 3D
+    ctx.drawImage(mark, 16, y);
+  } else {
+    ctx.fillStyle = def.ink; ctx.font = `54px ${BLOCK_FONT}`; ctx.textAlign = 'center'; ctx.fillText('INKCAP', 128, 84);
+  }
+  const t = toCanvasTexture(c);
+  _capLogoCache.set(id, t);
+  return t;
 }

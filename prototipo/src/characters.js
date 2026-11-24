@@ -5,7 +5,7 @@
 // Sin gorra en la cabeza = estás desarmado (lectura instantánea).
 // ─────────────────────────────────────────────────────────────
 import * as THREE from 'three';
-import { toonRamp, shirtTexture, capTexture, CAP_DESIGNS } from './textures.js';
+import { toonRamp, shirtTexture, capTexture, CAP_DESIGNS, shirtLook, capLogoTexture } from './textures.js';
 
 const OUTLINE_MAT = new THREE.MeshBasicMaterial({ color: 0x111111, side: THREE.BackSide });
 
@@ -73,6 +73,9 @@ const G = {
   dripTail: new THREE.ConeGeometry(0.045, 0.12, 8),
   arrow: new THREE.ConeGeometry(0.06, 0.12, 4),
   patch: new THREE.CylinderGeometry(0.075, 0.075, 0.012, 20),
+  // calcomanías: estampado de playera (frente/espalda) y logo del panel de la gorra
+  print: new THREE.CylinderGeometry(0.281, 0.281, 0.4, 18, 1, true, -0.95, 1.9),
+  capLogo: new THREE.SphereGeometry(0.364, 18, 8, Math.PI / 2 - 0.66, 1.32, 0.5, 0.78),
   ring: new THREE.RingGeometry(0.62, 0.74, 32),
   ring2: new THREE.RingGeometry(0.8, 0.86, 32),
 };
@@ -109,10 +112,18 @@ export function buildCap(color, design = 'clasica') {
   const g = new THREE.Group();
   const def = CAP_DESIGNS[design];
   const usesTexture = def && !def.playerColor;
-  const mat = usesTexture ? toon(0xffffff, capTexture(design)) : toon(color);
+  const decal = def && def.crown != null;            // gorra real: copa lisa + logo bordado al frente
+  const mat = decal ? toon(def.crown) : usesTexture ? toon(0xffffff, capTexture(design)) : toon(color);
   const visorColor = usesTexture ? new THREE.Color(def.visor ?? 0x222222) : new THREE.Color(color).multiplyScalar(0.75);
   const crown = withOutline(new THREE.Mesh(G.capCrown, mat), 1.06);
   crown.scale.set(1, 0.72, 1);
+  if (decal) {
+    const logo = new THREE.Mesh(G.capLogo, new THREE.MeshToonMaterial({
+      map: capLogoTexture(design), transparent: true, alphaTest: 0.05, gradientMap: toonRamp(),
+      polygonOffset: true, polygonOffsetFactor: -2,
+    }));
+    crown.add(logo);
+  }
   // visera plana de snapback (como las gorras reales de INKCAP)
   const visor = withOutline(new THREE.Mesh(G.capVisor, toon(visorColor)), 1.08);
   visor.position.set(0, -0.005, 0.17);
@@ -160,13 +171,21 @@ export class Toy {
     this.pivot.add(this.footL, this.footR, this.legL, this.legR);
 
     // cuerpo con playera
-    this.shirtMat = toon(0xffffff, shirtTexture(shirt));
+    this.shirtMat = toon(0xffffff);
+    this.sleeveMat = toon(0xffffff);
     this.body = withOutline(new THREE.Mesh(G.body, this.shirtMat), 1.08);
     this.body.position.y = 0.48;
     this.pivot.add(this.body);
+    // estampado al frente y en la espalda (calcomanía curva, no se estira)
+    const printMat = () => new THREE.MeshToonMaterial({ transparent: true, alphaTest: 0.04, gradientMap: toonRamp(), polygonOffset: true, polygonOffsetFactor: -2 });
+    this.printFront = new THREE.Mesh(G.print, printMat());
+    this.printBack = new THREE.Mesh(G.print, printMat());
+    this.printFront.position.y = 0.03; this.printBack.position.y = 0.03;
+    this.printBack.rotation.y = Math.PI;
+    this.body.add(this.printFront, this.printBack);
     // mangas de playera: hacen que el cuerpo se lea como una playera de verdad
     for (const sx of [-1, 1]) {
-      const sl = withOutline(new THREE.Mesh(G.sleeve, this.shirtMat), 1.1);
+      const sl = withOutline(new THREE.Mesh(G.sleeve, this.sleeveMat), 1.1);
       sl.position.set(0.29 * sx, 0.6, 0);
       sl.rotation.z = 0.95 * sx;
       this.pivot.add(sl);
@@ -197,11 +216,13 @@ export class Toy {
     }
     this._addFace();
     this.pivot.add(this.headGroup);
+    this.setShirt(shirt);
 
     // gorra en la cabeza (se oculta cuando la lanzas)
     this.cap = buildCap(color, capDesign);
-    this.cap.position.set(0, 0.3, -0.02);
-    this.cap.rotation.x = -0.12;
+    this.cap.scale.setScalar(1.32);       // cubre la coronilla como una gorra de verdad
+    this.cap.position.set(0, 0.13, 0.0);
+    this.cap.rotation.x = -0.1;
     this.headGroup.add(this.cap);
 
     // manos tipo guante flotante
@@ -266,7 +287,7 @@ export class Toy {
     } else if (kind === 'seam') {
       // Lienzo: cabeza lisa con la unión del molde marcada (la "plataforma" de los artistas)
       const seam = new THREE.Mesh(G.seam, toon(0xd8d8d0));
-      seam.rotation.y = Math.PI / 2; seam.scale.set(1.05, 0.92, 0.98);
+      seam.scale.set(1.05, 0.92, 0.98); // anillo de oreja a oreja (por los lados, no por la cara)
       h.add(seam);
     } else if (kind === 'gills') {
       // Axo: branquias rosas como brochas, tres por lado
@@ -341,8 +362,18 @@ export class Toy {
   }
 
   setShirt(id) {
-    this.shirtMat.map = shirtTexture(id);
+    const look = shirtLook(id);
+    this.shirtMat.map = look.wrap;
+    this.shirtMat.color.set(look.wrap ? 0xffffff : (look.fabric || '#f2f2ee'));
+    this.sleeveMat.map = look.wrap;
+    this.sleeveMat.color.set(look.wrap ? 0xffffff : (look.fabric || '#f2f2ee'));
+    for (const m of [this.printFront, this.printBack]) {
+      m.visible = !!look.print;
+      m.material.map = look.print;
+      m.material.needsUpdate = true;
+    }
     this.shirtMat.needsUpdate = true;
+    this.sleeveMat.needsUpdate = true;
   }
 
   setCapColor(hex) {
