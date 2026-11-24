@@ -29,8 +29,8 @@ await page.waitForTimeout(400);
 await page.screenshot({ path: `${OUT}/00-carga.png` });
 await page.waitForTimeout(1300);
 check(await page.evaluate(() => document.getElementById('loading').hidden), 'la pantalla de carga se va sola');
-const seal = await page.locator('#scr-menu .seal').innerText();
-check(/by\s*INKCAP/.test(seal), `menú con sello "${seal.trim()}"`);
+const seal = await page.locator('#scr-menu .seal').evaluate((el) => ({ text: el.innerText, logo: !!el.querySelector('img.inkcap-logo') }));
+check(/by/.test(seal.text) && (seal.logo || /INKCAP/.test(seal.text)), `menú con sello "by INKCAP" (logo: ${seal.logo})`);
 await page.screenshot({ path: `${OUT}/01-menu.png` });
 
 // ── Vestidor: canje de código, gorras ─────────────────────────

@@ -62,10 +62,10 @@ function today() { return dayKey(new Date()); }
 function fresh() {
   return {
     level: 1, xp: 0, coins: 100, // coins = Gotas
-    owned: ['basica-blanca', 'basica-negra'],
-    ownedCaps: ['clasica', 'inkcap-rotulo'],
+    owned: ['inkcap-basic-negra', 'basica-blanca', 'basica-negra'],
+    ownedCaps: ['inkcap-negra', 'clasica', 'inkcap-rotulo'],
     stickers: [], emotes: [],
-    equipped: { shirt: 'basica-blanca', species: 0, cap: 'clasica', sticker: null, emote: null },
+    equipped: { shirt: 'inkcap-basic-negra', species: 0, cap: 'inkcap-negra', sticker: null, emote: null },
     daily: { last: null, claimed: 0 },
     calendar: { stamps: 0, months: 0 },
     firstWinDay: null,
@@ -87,6 +87,9 @@ export function loadProgress() {
       if (saved.daily && saved.daily.claimed == null) data.daily = { last: saved.daily.last || null, claimed: saved.daily.streak || 0 };
       if (!Array.isArray(data.ownedCaps)) data.ownedCaps = fresh().ownedCaps;
       if (!data.calendar) data.calendar = { stamps: 0, months: 0 };
+      // v0.3: todos reciben la gorra y la playera reales de inicio
+      if (!data.owned.includes('inkcap-basic-negra')) data.owned.unshift('inkcap-basic-negra');
+      if (!data.ownedCaps.includes('inkcap-negra')) data.ownedCaps.unshift('inkcap-negra');
     }
   } catch { data = fresh(); }
   return data;

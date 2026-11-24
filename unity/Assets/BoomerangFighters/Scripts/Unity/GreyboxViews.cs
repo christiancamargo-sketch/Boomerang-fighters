@@ -199,9 +199,23 @@ namespace BoomerangFighters.UnityView
             var vinyl = Greybox.Hex(Greybox.VinylColors[((p.Species % Greybox.VinylColors.Length) + Greybox.VinylColors.Length) % Greybox.VinylColors.Length]);
             var body = Greybox.Prim(PrimitiveType.Capsule, _pivot, Color.white, new Vector3(0f, 0.48f, 0f), new Vector3(0.54f, 0.38f, 0.54f), "Cuerpo (playera)");
             Greybox.ApplyTexture(body, outfit.Shirt);
+            // v0.3: mangas, piernas de jogger y tenis (como el prototipo web)
+            foreach (float sx in new[] { -1f, 1f })
+            {
+                var sleeve = Greybox.Prim(PrimitiveType.Cylinder, _pivot, Color.white, new Vector3(0.29f * sx, 0.6f, 0f), new Vector3(0.22f, 0.075f, 0.22f), "Manga");
+                sleeve.transform.localRotation = Quaternion.Euler(0f, 0f, 55f * sx);
+                Greybox.ApplyTexture(sleeve, outfit.Shirt);
+                Greybox.Prim(PrimitiveType.Cylinder, _pivot, Greybox.Hex(0x2A2D36), new Vector3(0.13f * sx, 0.2f, 0f), new Vector3(0.15f, 0.1f, 0.15f), "Pierna");
+                Greybox.Prim(PrimitiveType.Capsule, _pivot, Greybox.Hex(0xF4F4F0), new Vector3(0.14f * sx, 0.06f, 0.03f), new Vector3(0.15f, 0.08f, 0.26f), "Suela");
+                Greybox.Prim(PrimitiveType.Sphere, _pivot, Greybox.Hex(0x1C1B20), new Vector3(0.14f * sx, 0.11f, 0.02f), new Vector3(0.16f, 0.11f, 0.22f), "Tenis");
+            }
             var head = Greybox.Prim(PrimitiveType.Sphere, _pivot, vinyl, new Vector3(0f, 1.08f, 0f), new Vector3(0.97f, 0.85f, 0.9f), "Cabeza");
             foreach (float sx in new[] { -0.16f, 0.16f })
                 Greybox.Prim(PrimitiveType.Sphere, head.transform, Color.black, new Vector3(sx / 0.97f, 0.02f, 0.45f), new Vector3(0.14f, 0.24f, 0.08f), "Ojo");
+            // boca y chapitas
+            Greybox.Prim(PrimitiveType.Sphere, head.transform, Greybox.Hex(0x141414), new Vector3(0f, -0.15f, 0.47f), new Vector3(0.1f, 0.03f, 0.03f), "Boca");
+            foreach (float sx in new[] { -0.27f, 0.27f })
+                Greybox.Prim(PrimitiveType.Sphere, head.transform, Greybox.Hex(0xFF8FB1), new Vector3(sx, -0.09f, 0.4f), new Vector3(0.11f, 0.06f, 0.03f), "Chapita");
             _capOnHead = BuildCap(_pivot, _color, outfit.Cap).transform;
             _capOnHead.localPosition = new Vector3(0f, 1.38f, 0f);
             var ring = Greybox.Prim(PrimitiveType.Cylinder, Root.transform, _color, new Vector3(0f, 0.02f, 0f), new Vector3(1.4f, 0.01f, 1.4f), "Aro");
@@ -227,7 +241,10 @@ namespace BoomerangFighters.UnityView
             var crown = Greybox.Prim(PrimitiveType.Sphere, cap.transform, color, Vector3.zero, new Vector3(0.72f, 0.42f, 0.72f), "Copa");
             Greybox.ApplyTexture(crown, tex);
             var visor = tex != null ? Greybox.Hex(design.Visor) : color * 0.75f;
-            Greybox.Prim(PrimitiveType.Cylinder, cap.transform, visor, new Vector3(0f, -0.05f, 0.25f), new Vector3(0.5f, 0.02f, 0.4f), "Visera");
+            // visera plana de snapback (como las gorras reales de INKCAP)
+            Greybox.Prim(PrimitiveType.Cylinder, cap.transform, visor, new Vector3(0f, -0.04f, 0.28f), new Vector3(0.62f, 0.015f, 0.5f), "Visera");
+            // parche redondo blanco sobre la visera en gorras con diseño
+            if (tex != null) Greybox.Prim(PrimitiveType.Cylinder, cap.transform, Greybox.Hex(0xF4F4F0), new Vector3(0.12f, -0.02f, 0.4f), new Vector3(0.14f, 0.008f, 0.14f), "Parche");
             // botón del color del jugador: aunque la copa tenga diseño, se sabe de quién es
             if (tex != null) Greybox.Prim(PrimitiveType.Sphere, cap.transform, color, new Vector3(0f, 0.2f, 0f), Vector3.one * 0.12f, "Botón");
             return cap;

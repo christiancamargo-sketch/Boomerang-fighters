@@ -18,7 +18,7 @@ Un *party brawler* para celular de 2 a 6 jugadores. Muñequitos estilo art toy p
 
 ## Probarlo
 
-- **Prototipo:** abre `prototipo/dist/index.html` en cualquier navegador (funciona sin internet y en el celular). Para reconstruirlo: `cd prototipo && npm install && npm run build`. Pruebas en navegador: `npm test`.
+- **Prototipo:** `cd prototipo && npm install && python3 herramientas/preparar_marca.py && npm run build` y abre `prototipo/dist/index.html` en cualquier navegador (funciona sin internet y en el celular). El script baja el logo, las gorras y los diseños de la tienda INKCAP; los diseños de artistas no se suben al repo (es público). Pruebas en navegador: `npm test`.
 - **Unity:** ver [`unity/README.md`](unity/README.md). Pruebas sin Unity: `cd unity/Tests~/SimTests && dotnet test`.
 
 ## Decisiones pendientes del cliente

@@ -4,7 +4,7 @@
 <meta name="theme-color" content="#121016">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=DM+Sans:wght@400;600;800&family=Permanent+Marker&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bungee&family=Barlow+Condensed:ital,wght@0,700;0,800;1,800;1,900&family=DM+Sans:wght@400;600;800&family=Permanent+Marker&display=swap">
 <style>
 /* Layout: lienzo 3D a pantalla completa; menús como "stickers" encima, HUD pegado a los bordes seguros. */
 :root {
@@ -12,7 +12,9 @@
   --ink-2: #1e1a26;      /* paneles */
   --paper: #f4f1ea;      /* papel / texto */
   --muted: #a9a3b5;
-  --hot: #ff6a2b;        /* naranja del jugador 1 */
+  --hot: #ccff00;        /* neón de la tienda INKCAP */
+  --brand-red: #cc1111;  /* rojo de la tienda INKCAP */
+  --f-brand: "Barlow Condensed", "Arial Narrow", system-ui, sans-serif;
   --cool: #22c7e8;       /* cian (desfase de serigrafía) */
   --gold: #ffd23f;
   --line: #000;
@@ -62,7 +64,10 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
 .btn:hover { transform: translate(-1px, -1px) rotate(-1deg); box-shadow: 5px 5px 0 var(--line); }
 .btn:active { transform: translate(3px, 3px); box-shadow: 1px 1px 0 var(--line); }
 .btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }
-.btn.primary { background: var(--hot); color: #fff; font-size: 22px; padding: 14px 22px; }
+.btn.primary { background: var(--hot); color: #0a0a0a; font-size: 22px; padding: 14px 22px; }
+.btn { font-family: var(--f-brand); font-weight: 900; font-style: italic; text-transform: uppercase; letter-spacing: .02em; }
+.shirt-info .real { font-size: 12px; font-weight: 800; color: var(--hot); text-decoration: none; margin-top: 2px; }
+.shirt-info .real:hover { text-decoration: underline; }
 .btn.ghost { background: transparent; color: var(--paper); border-color: var(--paper); box-shadow: 4px 4px 0 var(--line); }
 .dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line); vertical-align: -1px; margin-right: 6px; }
 
@@ -73,7 +78,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--gold); outl
   font-family: var(--f-display); font-size: clamp(44px, 9vw, 86px); line-height: .92; margin: 0;
   color: var(--paper); letter-spacing: 0.01em;
   /* desfase de registro de serigrafía: tres tintas que no caen exacto */
-  text-shadow: -4px 3px 0 var(--cool), 4px -2px 0 var(--hot), 6px 7px 0 var(--line);
+  text-shadow: -4px 3px 0 var(--brand-red), 4px -2px 0 var(--hot), 6px 7px 0 var(--line);
   transform: rotate(-3deg); transform-origin: left center;
 }
 .tagline { font-family: var(--f-tag); font-size: clamp(17px, 2.6vw, 22px); color: var(--gold); margin: 2px 0 8px; transform: rotate(-2deg); }
@@ -200,7 +205,7 @@ tr.win td { color: var(--gold); font-weight: 800; }
 .t-knob { position: absolute; left: 50%; top: 50%; width: 54px; height: 54px; border-radius: 50%; background: rgba(244,241,234,.85); border: 3px solid var(--line); transform: translate(-50%,-50%); }
 .t-btn { position: absolute; pointer-events: auto; touch-action: none; border: 3px solid var(--line); border-radius: 50%; font-family: var(--f-display); color: #fff; box-shadow: 3px 3px 0 var(--line); display: grid; place-items: center; text-align: center; line-height: 1; }
 .t-btn.down { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--line); filter: brightness(1.2); }
-.t-throw { width: 104px; height: 104px; right: calc(max(18px, env(safe-area-inset-right, 0px)) + 8px); bottom: calc(env(safe-area-inset-bottom, 0px) + 22px); background: var(--hot); font-size: 15px; }
+.t-throw { width: 104px; height: 104px; right: calc(max(18px, env(safe-area-inset-right, 0px)) + 8px); bottom: calc(env(safe-area-inset-bottom, 0px) + 22px); background: var(--hot); color: #0a0a0a; font-size: 15px; }
 .t-throw small { font-family: var(--f-body); font-size: 9px; font-weight: 800; opacity: .85; display: block; margin-top: 2px; }
 .t-melee { width: 68px; height: 68px; right: calc(max(18px, env(safe-area-inset-right, 0px)) + 122px); bottom: calc(env(safe-area-inset-bottom, 0px) + 30px); background: #e84393; font-size: 12px; }
 .t-dash { width: 64px; height: 64px; right: calc(max(18px, env(safe-area-inset-right, 0px)) + 30px); bottom: calc(env(safe-area-inset-bottom, 0px) + 138px); background: var(--cool); color: var(--ink); font-size: 12px; }

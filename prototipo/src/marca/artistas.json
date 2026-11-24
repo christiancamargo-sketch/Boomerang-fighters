@@ -1,0 +1,34 @@
+[
+  {
+    "id": "cabra-chava-chavs",
+    "name": "Drop Cabra",
+    "artist": "Chava Chavs",
+    "price": 349,
+    "fabric": "#121212",
+    "tienda": "https://www.inkcap.com.mx/tienda"
+  },
+  {
+    "id": "mandala-alien-inkspiral",
+    "name": "Mandala",
+    "artist": "Alien Inkspiral",
+    "price": 649,
+    "fabric": "#4c4951",
+    "tienda": "https://www.inkcap.com.mx/tienda"
+  },
+  {
+    "id": "spooky-joann-spooky",
+    "name": "Spooky",
+    "artist": "Joann Spooky",
+    "price": 649,
+    "fabric": "#c78cd2",
+    "tienda": "https://www.inkcap.com.mx/tienda"
+  },
+  {
+    "id": "cafeina-jotch",
+    "name": "La Cafeína me Domina",
+    "artist": "Jotch",
+    "price": 649,
+    "fabric": "#eeede9",
+    "tienda": "https://www.inkcap.com.mx/tienda"
+  }
+]

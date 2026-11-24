@@ -16,3 +16,9 @@ prototipo/pruebas/capturas/
 !unity/Tests~/**/*.csproj
 unity/Tests~/**/bin/
 unity/Tests~/**/obj/
+# Diseños de artistas: no se publican en el repo (público) hasta firmar la licencia digital.
+# Se regeneran con: python3 prototipo/herramientas/preparar_marca.py
+prototipo/src/marca/artistas/
+unity/Assets/BoomerangFighters/Resources/Disenos/Playeras/Artista - *
+# El prototipo compilado incrusta esos diseños: se genera con `cd prototipo && node build.mjs`
+prototipo/dist/

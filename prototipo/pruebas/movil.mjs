@@ -17,7 +17,7 @@ await page.goto(pathToFileURL(resolve('dist/index.html')).href);
 await page.waitForTimeout(1500);
 await page.screenshot({ path: `${OUT}/m1-menu.png` });
 // el menú cabe sin scroll horizontal y trae el sello de la marca
-const fit = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, w: innerWidth, seal: document.querySelector('#scr-menu .seal').innerText }));
+const fit = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, w: innerWidth, seal: document.querySelector('#scr-menu .seal').innerText + (document.querySelector('#scr-menu .seal img.inkcap-logo') ? ' INKCAP' : '') }));
 console.log('menú:', JSON.stringify(fit));
 if (fit.sw > fit.w || !/INKCAP/.test(fit.seal)) errors.push('menú no cabe o falta el sello');
 // vestidor con gorras en el celular

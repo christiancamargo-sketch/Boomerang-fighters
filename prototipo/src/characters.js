@@ -56,6 +56,23 @@ const G = {
   capCrown: new THREE.SphereGeometry(0.36, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2),
   capVisor: new THREE.CylinderGeometry(0.3, 0.3, 0.04, 18, 1, false, -Math.PI / 2, Math.PI),
   capButton: new THREE.SphereGeometry(0.05, 8, 6),
+  // v0.3: muñequito mejorado (piernas, tenis, mangas, cara)
+  leg: new THREE.CylinderGeometry(0.07, 0.08, 0.2, 10),
+  sole: new THREE.CapsuleGeometry(0.075, 0.13, 4, 10),
+  shoeTop: new THREE.SphereGeometry(0.09, 10, 8),
+  sleeve: new THREE.CylinderGeometry(0.095, 0.115, 0.15, 12),
+  mouth: new THREE.TorusGeometry(0.055, 0.013, 6, 14, Math.PI),
+  blush: new THREE.CircleGeometry(0.055, 14),
+  neck: new THREE.TorusGeometry(0.2, 0.02, 6, 24),
+  mask: new THREE.SphereGeometry(0.2, 14, 10),
+  filter: new THREE.CylinderGeometry(0.07, 0.07, 0.07, 12),
+  nose: new THREE.SphereGeometry(0.035, 8, 6),
+  tooth: new THREE.BoxGeometry(0.05, 0.05, 0.02),
+  stitch: new THREE.BoxGeometry(0.012, 0.09, 0.012),
+  drip: new THREE.SphereGeometry(0.06, 10, 8),
+  dripTail: new THREE.ConeGeometry(0.045, 0.12, 8),
+  arrow: new THREE.ConeGeometry(0.06, 0.12, 4),
+  patch: new THREE.CylinderGeometry(0.075, 0.075, 0.012, 20),
   ring: new THREE.RingGeometry(0.62, 0.74, 32),
   ring2: new THREE.RingGeometry(0.8, 0.86, 32),
 };
@@ -96,12 +113,19 @@ export function buildCap(color, design = 'clasica') {
   const visorColor = usesTexture ? new THREE.Color(def.visor ?? 0x222222) : new THREE.Color(color).multiplyScalar(0.75);
   const crown = withOutline(new THREE.Mesh(G.capCrown, mat), 1.06);
   crown.scale.set(1, 0.72, 1);
+  // visera plana de snapback (como las gorras reales de INKCAP)
   const visor = withOutline(new THREE.Mesh(G.capVisor, toon(visorColor)), 1.08);
-  visor.position.set(0, 0.0, 0.16);
-  visor.scale.set(1, 1, 1.25);
-  const button = new THREE.Mesh(G.capButton, toon(0xffffff));
+  visor.position.set(0, -0.005, 0.17);
+  visor.scale.set(1.06, 0.8, 1.38);
+  const button = new THREE.Mesh(G.capButton, toon(usesTexture ? (def.button ?? visorColor.getHex()) : 0xffffff));
   button.position.y = 0.26;
   g.add(crown, visor, button);
+  if (def && def.patch) {
+    // parche redondo blanco "diseñado por artistas · hecho en México" sobre la visera
+    const patch = new THREE.Mesh(G.patch, toon(0xf4f4f0));
+    patch.position.set(0.13, 0.012, 0.43);
+    g.add(patch);
+  }
   g.userData.mat = mat;
   g.userData.textured = usesTexture;
   return g;
@@ -116,19 +140,37 @@ export class Toy {
     this.pivot = new THREE.Group(); // aquí aplicamos rebote y squash
     this.root.add(this.pivot);
 
-    // pies
-    const footMat = toon(0x26262b);
-    this.footL = new THREE.Mesh(G.foot, footMat); this.footL.scale.set(1, 0.6, 1.3);
-    this.footR = this.footL.clone();
-    this.footL.position.set(-0.16, 0.08, 0.02);
-    this.footR.position.set(0.16, 0.08, 0.02);
-    this.pivot.add(withOutline(this.footL), withOutline(this.footR));
+    // piernas de jogger + tenis (suela blanca, parte de arriba negra)
+    const pantMat = toon(0x2a2d36);
+    const soleMat = toon(0xf4f4f0);
+    const shoeMat = toon(0x1c1b20);
+    const makeShoe = () => {
+      const shoe = new THREE.Group();
+      const sole = withOutline(new THREE.Mesh(G.sole, soleMat), 1.08);
+      sole.rotation.x = Math.PI / 2; sole.scale.set(1, 1, 0.55); sole.position.y = -0.02;
+      const top = new THREE.Mesh(G.shoeTop, shoeMat); top.scale.set(0.9, 0.6, 1.15); top.position.set(0, 0.03, -0.01);
+      shoe.add(sole, top);
+      return shoe;
+    };
+    this.footL = makeShoe(); this.footR = makeShoe();
+    this.footL.position.set(-0.14, 0.08, 0.03);
+    this.footR.position.set(0.14, 0.08, 0.03);
+    this.legL = new THREE.Mesh(G.leg, pantMat); this.legR = new THREE.Mesh(G.leg, pantMat);
+    this.legL.position.set(-0.13, 0.2, 0); this.legR.position.set(0.13, 0.2, 0);
+    this.pivot.add(this.footL, this.footR, this.legL, this.legR);
 
     // cuerpo con playera
     this.shirtMat = toon(0xffffff, shirtTexture(shirt));
     this.body = withOutline(new THREE.Mesh(G.body, this.shirtMat), 1.08);
     this.body.position.y = 0.48;
     this.pivot.add(this.body);
+    // mangas de playera: hacen que el cuerpo se lea como una playera de verdad
+    for (const sx of [-1, 1]) {
+      const sl = withOutline(new THREE.Mesh(G.sleeve, this.shirtMat), 1.1);
+      sl.position.set(0.29 * sx, 0.6, 0);
+      sl.rotation.z = 0.95 * sx;
+      this.pivot.add(sl);
+    }
 
     // cabeza de vinil
     this.headGroup = new THREE.Group();
@@ -153,6 +195,7 @@ export class Toy {
       this.headGroup.add(e);
       this.eyes.push(e);
     }
+    this._addFace();
     this.pivot.add(this.headGroup);
 
     // gorra en la cabeza (se oculta cuando la lanzas)
@@ -238,6 +281,65 @@ export class Toy {
     }
   }
 
+  // Boca, chapitas y el detalle que hace único a cada muñequito (GDD §6.1)
+  _addFace() {
+    const h = this.headGroup;
+    const id = this.species.id;
+    const dark = this.species.vinyl === 0x2f2f36;
+    const lineMat = new THREE.MeshBasicMaterial({ color: dark ? 0xfff3b0 : 0x141414 });
+    if (id !== 'oso') {
+      const m = new THREE.Mesh(G.mouth, lineMat);
+      m.position.set(0, -0.13, 0.42); m.rotation.set(0.15, 0, Math.PI);
+      if (id === 'ajolote') m.scale.set(1.6, 1, 1);
+      h.add(m);
+    }
+    if (!dark && id !== 'oso') {
+      const bm = new THREE.MeshBasicMaterial({ color: 0xff8fb1, transparent: true, opacity: 0.55, depthWrite: false });
+      for (const sx of [-1, 1]) { const b = new THREE.Mesh(G.blush, bm); b.position.set(0.25 * sx, -0.08, 0.385); b.rotation.y = 0.55 * sx; h.add(b); }
+    }
+    const vinyl = toon(this.species.vinyl);
+    if (id === 'oso') {
+      // Osote: respirador de pintor de grafiti
+      const mask = withOutline(new THREE.Mesh(G.mask, toon(0x8a9099)), 1.06);
+      mask.scale.set(1.15, 0.62, 0.7); mask.position.set(0, -0.16, 0.33); h.add(mask);
+      for (const sx of [-1, 1]) {
+        const f = withOutline(new THREE.Mesh(G.filter, toon(0xd55e00)), 1.08);
+        f.rotation.x = Math.PI / 2; f.rotation.z = 0.5 * sx; f.position.set(0.17 * sx, -0.18, 0.43); h.add(f);
+      }
+    } else if (id === 'gato' || id === 'diablito') {
+      // Michi y Pegote: cola en "S" (la de Pegote termina en flecha)
+      const curve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0, 0.42, -0.24), new THREE.Vector3(0.12, 0.5, -0.42),
+        new THREE.Vector3(-0.08, 0.72, -0.5), new THREE.Vector3(0.05, 0.9, -0.46),
+      ]);
+      const tail = withOutline(new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.035, 6), id === 'gato' ? vinyl : toon(0xc0392b)), 1.15);
+      this.pivot.add(tail);
+      if (id === 'diablito') {
+        const tip = new THREE.Mesh(G.arrow, toon(0xc0392b)); tip.position.set(0.05, 0.98, -0.46); this.pivot.add(tip);
+        const st = new THREE.Mesh(G.blush, new THREE.MeshBasicMaterial({ color: 0xf0e442 }));
+        st.position.set(-0.27, 0.02, 0.36); st.rotation.y = -0.6; st.scale.setScalar(0.8); h.add(st); // sticker en el cachete
+      }
+    } else if (id === 'gota') {
+      // Gotita: una gota de tinta escurriendo por la cabeza
+      const d = new THREE.Mesh(G.drip, toon(0x0072b2)); d.position.set(0.3, -0.08, 0.3); h.add(d);
+      const t = new THREE.Mesh(G.dripTail, toon(0x0072b2)); t.position.set(0.3, 0.0, 0.3); h.add(t);
+    } else if (id === 'conejo') {
+      // Seri: nariz y dientes de conejo
+      const n = new THREE.Mesh(G.nose, toon(0xe84393)); n.position.set(0, -0.06, 0.45); h.add(n);
+      const tt = new THREE.Mesh(G.tooth, toon(0xffffff)); tt.position.set(0, -0.19, 0.41); h.add(tt);
+    } else if (id === 'alien') {
+      // Zurci: costuras de bordado en la cabeza
+      const sm = toon(0x3b3b3b);
+      for (let k = 0; k < 4; k++) {
+        const st = new THREE.Mesh(G.stitch, sm);
+        st.position.set(-0.36 + k * 0.05, 0.16 - k * 0.03, 0.22); st.rotation.set(0.4, -0.9, 0.9); h.add(st);
+      }
+    } else if (id === 'lienzo') {
+      // Lienzo: unión del cuello visible, como un art toy de vinil sin pintar
+      const nk = new THREE.Mesh(G.neck, toon(0xd8d8d0)); nk.rotation.x = Math.PI / 2; nk.position.y = 0.74; this.pivot.add(nk);
+    }
+  }
+
   setShirt(id) {
     this.shirtMat.map = shirtTexture(id);
     this.shirtMat.needsUpdate = true;
@@ -282,6 +384,10 @@ export class Toy {
     this.footR.position.z = 0.02 - step;
     this.footL.position.y = 0.08 + Math.max(0, Math.sin(this.walkPhase)) * 0.06;
     this.footR.position.y = 0.08 + Math.max(0, -Math.sin(this.walkPhase)) * 0.06;
+    if (this.legL) {
+      this.legL.position.z = this.footL.position.z * 0.6; this.legR.position.z = this.footR.position.z * 0.6;
+      this.legL.rotation.x = step * 0.9; this.legR.rotation.x = -step * 0.9;
+    }
 
     // manos: balanceo, carga (mano atrás), lanzamiento y golpe
     this.throwAnim = Math.max(0, this.throwAnim - dt * 6);

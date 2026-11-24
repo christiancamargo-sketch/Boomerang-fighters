@@ -5,6 +5,7 @@
 // para demostrar que "un diseño = una textura intercambiable".
 // ─────────────────────────────────────────────────────────────
 import * as THREE from 'three';
+import { MARCA, tintedLogo } from './marca.js';
 
 function makeCanvas(w, h) {
   const c = document.createElement('canvas');
@@ -561,4 +562,80 @@ export function hazardStripeTexture() {
   }
   _hazardTex = toCanvasTexture(c, { repeat: [1, 1] });
   return _hazardTex;
+}
+
+
+// ── Productos reales de INKCAP (www.inkcap.com.mx) ───────────
+// Gorras snapback de la tienda ($499 MXN) con el logo bordado al frente
+// y el parche redondo en la visera; playera Basic negra; y diseños de
+// artistas recortados de las fotos de producto (provisionales hasta tener
+// el archivo original y la licencia digital del artista).
+export const TIENDA_URL = 'https://www.inkcap.com.mx/tienda';
+const REAL_CAPS = [
+  ['inkcap-negra', 'INKCAP Negra', '#161518', '#f2f2f2', 0],
+  ['inkcap-roja', 'INKCAP Roja', '#c8102e', '#f7f7f7', 300],
+  ['inkcap-azul-rey', 'INKCAP Azul Rey', '#1f3fa3', '#f2f2f2', 300],
+  ['inkcap-azul-marino', 'INKCAP Azul Marino', '#1b1f3b', '#ededed', 300],
+  ['inkcap-gris', 'INKCAP Gris', '#4b4a50', '#d9d9dc', 300],
+  ['inkcap-jaspe', 'INKCAP Jaspe', '#9d9c9f', '#3a393d', 300],
+];
+
+// La u=0.5 del cuerpo es la ESPALDA y el frente queda en la costura (u=0/1):
+// para el frente se dibuja partido en las dos orillas del canvas.
+function drawFront(ctx, img, W, cy, w, h) {
+  for (const cx of [0, W]) ctx.drawImage(img, cx - w / 2, cy - h / 2, w, h);
+}
+
+export function registerBrandDesigns() {
+  for (const [id, name, crown, ink, price] of REAL_CAPS) {
+    CAP_DESIGNS[id] = {
+      name, price, rarity: price ? 'Gorra real INKCAP · $499 en tienda' : 'Gorra real INKCAP · de inicio',
+      visor: parseInt(crown.slice(1), 16), button: parseInt(crown.slice(1), 16), patch: true, url: TIENDA_URL,
+      paint(ctx, W, H) {
+        ctx.fillStyle = crown; ctx.fillRect(0, 0, W, H);
+        const mark = tintedLogo(ink, 92);
+        const shadow = tintedLogo('rgba(0,0,0,0.35)', 92);
+        capFront(ctx, (c) => {
+          if (mark) {
+            const y = 78 - mark.height / 2;
+            c.drawImage(shadow, -mark.width / 2 + 2, y + 2); // relieve del bordado 3D
+            c.drawImage(mark, -mark.width / 2, y);
+          } else {
+            c.fillStyle = ink; c.font = `22px ${BLOCK_FONT}`; c.textAlign = 'center'; c.fillText('INKCAP', 0, 90);
+          }
+        });
+      },
+    };
+  }
+  SHIRT_DESIGNS['inkcap-basic-negra'] = {
+    name: 'INKCAP Basic Negra', price: 0, rarity: 'Playera real INKCAP · de inicio', url: TIENDA_URL,
+    paint(ctx, W, H) {
+      ctx.fillStyle = '#141414'; ctx.fillRect(0, 0, W, H);
+      const mark = tintedLogo('#f2f2f2', 120);
+      if (mark) {
+        ctx.drawImage(mark, W / 2 - mark.width / 2, H * 0.5 - mark.height / 2); // espalda: logo grande
+        drawFront(ctx, mark, W, H * 0.42, mark.width * 0.45, mark.height * 0.45); // pecho: logo chico
+      } else { ctx.fillStyle = '#f2f2f2'; ctx.font = `30px ${BLOCK_FONT}`; ctx.textAlign = 'center'; ctx.fillText('INKCAP', W / 2, H * 0.55); }
+    },
+  };
+  for (const a of MARCA.artistas || []) {
+    if (!a.imgEl) continue;
+    SHIRT_DESIGNS[`artista-${a.id}`] = {
+      name: a.name, price: 450, rarity: `Artista · ${a.artist} · $${a.price} en tienda`, url: a.tienda || TIENDA_URL, artist: a.artist,
+      paint(ctx, W, H) {
+        ctx.fillStyle = a.fabric; ctx.fillRect(0, 0, W, H);
+        const side = W * 0.62;
+        ctx.drawImage(a.imgEl, W / 2 - side / 2, H * 0.5 - side / 2, side, side); // espalda: diseño completo
+        drawFront(ctx, a.imgEl, W, H * 0.48, side * 0.7, side * 0.7);         // frente: el mismo diseño, más chico
+      },
+    };
+  }
+  // los productos reales de INKCAP van primero en el vestidor
+  const brandFirst = (obj, isBrand) => {
+    for (const k of Object.keys(obj)) if (!isBrand(obj[k])) { const v = obj[k]; delete obj[k]; obj[k] = v; }
+  };
+  brandFirst(CAP_DESIGNS, (d) => !!d.url);
+  brandFirst(SHIRT_DESIGNS, (d) => !!d.url);
+  _shirtCache.clear();
+  _capCache.clear();
 }

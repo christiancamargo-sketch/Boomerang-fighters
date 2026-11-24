@@ -382,9 +382,9 @@ export class UI {
     $('#w-caps').hidden = this.wardrobeTab !== 'caps';
     $('#w-collection').hidden = this.wardrobeTab !== 'collection';
 
-    const item = ({ id, img, name, rarity, owned, equipped, action }) => `<div class="shirt${equipped ? ' equipped' : ''}${owned ? '' : ' locked'}" data-id="${id}">
+    const item = ({ id, img, name, rarity, owned, equipped, action, url }) => `<div class="shirt${equipped ? ' equipped' : ''}${owned ? '' : ' locked'}" data-id="${id}">
         <img src="${img}" alt="" width="64" height="64">
-        <div class="shirt-info"><strong>${name}</strong><small>${rarity}</small></div>
+        <div class="shirt-info"><strong>${name}</strong><small>${rarity}</small>${url ? `<a class="real" href="${url}" target="_blank" rel="noopener">Consíguela real ↗</a>` : ''}</div>
         ${action}
       </div>`;
     const actionFor = (kind, id, d, owned, equipped) => {
@@ -398,7 +398,7 @@ export class UI {
 
     const grid = $('#w-shirts');
     grid.innerHTML = Object.entries(SHIRT_DESIGNS).map(([id, d]) => item({
-      id, img: shirtThumb(id), name: d.name, rarity: d.rarity,
+      id, img: shirtThumb(id), name: d.name, rarity: d.rarity, url: d.url,
       owned: p.owned.includes(id), equipped: p.equipped.shirt === id,
       action: actionFor('shirt', id, d, p.owned.includes(id), p.equipped.shirt === id),
     })).join('');
@@ -407,7 +407,7 @@ export class UI {
     const caps = Object.entries(CAP_DESIGNS).filter(([id, d]) => !d.dailyOnly || id === week || p.ownedCaps.includes(id));
     $('#w-caps').innerHTML = `<p class="hint">El diseño va en la copa: la silueta y el tamaño nunca cambian, y tu color de jugador sigue en el aro y el rastro.</p>`
       + caps.map(([id, d]) => item({
-        id, img: capThumb(id, PLAYER_COLORS[0].css), name: d.name, rarity: d.rarity,
+        id, img: capThumb(id, PLAYER_COLORS[0].css), name: d.name, rarity: d.rarity, url: d.url,
         owned: p.ownedCaps.includes(id), equipped: p.equipped.cap === id,
         action: actionFor('cap', id, d, p.ownedCaps.includes(id), p.equipped.cap === id),
       })).join('');
