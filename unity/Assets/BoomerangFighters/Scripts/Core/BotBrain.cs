@@ -7,6 +7,8 @@
 // huyen de los charcos y juegan Lata Caliente (persiguen / huyen).
 // v0.3 (V5): tratan los vacíos como obstáculos, no hacen dash hacia un
 // vacío, se alejan de las orillas (< 0.8 m) y salen de la sombra de la caja DROP.
+// También los aprovechan: sin gorra, van por el rival al que un empujón
+// dejaría dentro de un vacío (de ahí salen casi todas las caídas con crédito).
 // ─────────────────────────────────────────────────────────────
 using System;
 
@@ -19,8 +21,6 @@ namespace BoomerangFighters.Core
         readonly BotProfile _cfg;
         Rng _rng;
 
-        public static float HUNT = float.Parse(System.Environment.GetEnvironmentVariable("HUNT") ?? "5"), PITP = float.Parse(System.Environment.GetEnvironmentVariable("PITP") ?? "0.05"); public static float SIDE = float.Parse(System.Environment.GetEnvironmentVariable("SIDE") ?? "0.6"); public static float SLIDE = float.Parse(System.Environment.GetEnvironmentVariable("SLIDE") ?? "1.3"); public static bool GOODSIDE = System.Environment.GetEnvironmentVariable("GOODSIDE") == "1", NORECALL = System.Environment.GetEnvironmentVariable("NORECALL") == "1"; public static float HUNTA = float.Parse(System.Environment.GetEnvironmentVariable("HUNTA") ?? "9"), HUNTCD = float.Parse(System.Environment.GetEnvironmentVariable("HUNTCD") ?? "0"), HUNTMAX = float.Parse(System.Environment.GetEnvironmentVariable("HUNTMAX") ?? "1.5"); float _huntCd, _huntT; public static bool USEDASH = System.Environment.GetEnvironmentVariable("USEDASH") == "1";
-        public static int DbgCapless, DbgFound, DbgInPlace, DbgNear5;
         int _targetId = -1;
         float _retarget, _think, _throwCooldown, _chargeGoal, _chargeT, _strafeT, _dodgeT, _preferredDist;
         int _strafeDir;
@@ -31,6 +31,16 @@ namespace BoomerangFighters.Core
         Vec2 _dodgeDir;
         int _deflectRolledCap = -1;   // gorra que ya evaluamos (una tirada por gorra)
         int _deflectCap = -1;         // gorra que vamos a intentar desviar
+        float _huntCd, _huntT;        // "empujón al vacío": descanso entre intentos y segundos que lleva el intento actual
+        readonly float _dashReach;    // metros que avanza un dash de verdad (ticks enteros)
+        readonly float _shoveReach;   // metros que recorre un empujón de verdad
+
+        // "Empujón al vacío". Valores balanceados con HeadlessHost: más agresivo sube las caídas,
+        // pero los bots se la pasan encima unos de otros y las rondas bajan de 10 s.
+        const float HuntCooldown = 5f;          // segundos de descanso después de un intento
+        const float HuntMaxTime = 1.5f;         // si en 1.5 s no salió el empujón, lo deja
+        const float HuntArmedFactor = 2f / 3f;  // a un rival con gorra solo se le busca más de cerca
+        const float HuntSideMinDot = -0.5f;     // no rodea por completo al rival para buscar el lado bueno
 
         public BotBrain(MatchSimulation sim, int playerId, BotDifficulty difficulty)
         {
@@ -41,6 +51,14 @@ namespace BoomerangFighters.Core
             _throwCooldown = 1f + _rng.NextFloat();
             _strafeDir = _rng.NextFloat() < 0.5f ? 1 : -1;
             _preferredDist = 5f + _rng.NextFloat() * 3f;
+            // mismas cuentas que la simulación: el dash y el empujón duran ticks enteros
+            var PT = sim.T.Player;
+            int n = 0;
+            for (float t = PT.DashTime; t > 0f && n < 600; t -= MatchSimulation.Dt) n++;
+            _dashReach = n * PT.DashSpeed * MatchSimulation.Dt;
+            n = 0;
+            for (float t = PT.ShoveTime; t > MatchSimulation.PushEps && n < 600; t -= MatchSimulation.Dt) n++;
+            _shoveReach = n * (PT.ShoveDistance / PT.ShoveTime) * MatchSimulation.Dt;
         }
 
         public InputCommand Think(float dt)
@@ -50,7 +68,7 @@ namespace BoomerangFighters.Core
             if (!me.Alive || _sim.Phase != MatchPhase.Play) { _charging = false; return cmd; }
             var T = _sim.T;
 
-            _retarget -= dt; _think -= dt; _throwCooldown -= dt; _strafeT -= dt; _dodgeT -= dt;
+            _retarget -= dt; _think -= dt; _throwCooldown -= dt; _strafeT -= dt; _dodgeT -= dt; _huntCd -= dt;
 
             // objetivo: el más cercano (con algo de "terquedad")
             var tgt = _targetId >= 0 ? _sim.Players[_targetId] : null;
@@ -194,7 +212,6 @@ namespace BoomerangFighters.Core
                     var n = delta / d;
                     float radial = d > _preferredDist + 1f ? 1f : (d < _preferredDist - 1.5f ? -0.8f : 0f);
                     if (_strafeT <= 0f) { _strafeDir *= -1; _strafeT = 0.8f + _rng.NextFloat() * 1.4f; }
-                    if (GOODSIDE && _sim.Arena.HasPits && GoodSide(me, tgt, n, out int side)) _strafeDir = side;
                     move += n * radial + n.Perp * (_strafeDir * 0.7f);
 
                     if (d < T.Player.MeleeRange * 0.95f && me.MeleeCd <= 0f && _rng.NextFloat() < 0.25f)
@@ -230,12 +247,49 @@ namespace BoomerangFighters.Core
             {
                 _charging = false;
                 var cap = me.Cap;
-                if (cap.Mode == CapMode.Ground)
+
+                // v0.3: sin gorra, aprovechar los vacíos: ir por el rival al que un empujón dejaría dentro de uno
+                bool hunting = false, pitShove = false;
+                if (_huntCd <= 0f && _cfg.PitHunt > 0f && _sim.Rules.Shove && _sim.Arena.HasPits
+                    && FindPitShove(me, out var shoveAim, out var standAt, out bool inPlace))
+                {
+                    hunting = true;
+                    _huntT += dt;
+                    if (_huntT > HuntMaxTime) EndHunt(); // no salió: dejarlo por un rato
+                    if (inPlace)
+                    {
+                        if (me.ShoveCd <= 0f && _rng.NextFloat() < _cfg.PitShoveChance)
+                        {
+                            cmd.Buttons |= InputButtons.MeleePressed | InputButtons.HasAim;
+                            cmd.Aim = shoveAim;
+                            pitShove = true;
+                            EndHunt();
+                        }
+                    }
+                    else
+                    {
+                        // acomodarse detrás del rival (gana a "huir"); si está lejos, llegar con dash
+                        var go = standAt - me.Pos;
+                        float gl = go.Length;
+                        if (gl > 1e-3f)
+                        {
+                            var gd = go / gl;
+                            move += gd * 2.2f;
+                            if (gl > 2.4f && me.DashCd <= 0f && DashIsSafe(me, gd))
+                            {
+                                cmd.Move = gd;
+                                cmd.Buttons |= InputButtons.DashPressed;
+                                return cmd;
+                            }
+                        }
+                    }
+                }
+                else _huntT = 0f;
+
+                if (cap.Mode == CapMode.Ground && !hunting) // mientras busca el empujón no llama su gorra
                 {
                     float dc = Vec2.Distance(me.Pos, cap.Pos);
-                    bool hunting = NORECALL && _huntCd <= 0f && _sim.Rules.Shove && _sim.Arena.HasPits && FindPitShove(me, out _, out _, out _);
-                    if (hunting) { }
-                    else if (dc < 3f) move += (cap.Pos - me.Pos).Normalized * 1.5f;
+                    if (dc < 3f) move += (cap.Pos - me.Pos).Normalized * 1.5f;
                     else if (_think <= 0f) { cmd.Buttons |= InputButtons.ThrowPressed | InputButtons.ThrowReleased; _think = 0.4f; }
                 }
                 // sin gorra: alejarse de rivales armados
@@ -249,37 +303,6 @@ namespace BoomerangFighters.Core
                 }
                 move += flee * 4f;
                 if (cap.Mode == CapMode.Return || cap.Mode == CapMode.Recall) move += (cap.Pos - me.Pos).Normalized * 0.6f;
-
-                // v0.3: sin gorra, aprovechar los vacíos: empujar al rival que quedaría dentro de uno
-                bool pitShove = false;
-                DbgCapless++;
-                foreach (var o in _sim.Players) if (o.Id != _id && o.Alive && Vec2.Distance(o.Pos, me.Pos) < 5f) { DbgNear5++; break; }
-                _huntCd -= dt;
-                if (_huntCd <= 0f && _sim.Rules.Shove && _sim.Arena.HasPits && FindPitShove(me, out var shoveAim, out var standAt, out bool inPlace))
-                {
-                    DbgFound++;
-                    _huntT += dt;
-                    if (_huntT > HUNTMAX) { _huntCd = HUNTCD; _huntT = 0f; }
-                    if (inPlace)
-                    {
-                        DbgInPlace++;
-                        if (me.ShoveCd <= 0f && _rng.NextFloat() < PITP)
-                        {
-                            cmd.Buttons |= InputButtons.MeleePressed | InputButtons.HasAim;
-                            cmd.Aim = shoveAim;
-                            pitShove = true;
-                            _huntCd = HUNTCD; _huntT = 0f;
-                        }
-                    }
-                    else
-                    {
-                        var go = standAt - me.Pos;
-                        float gl = go.Length;
-                        move += (gl > 1e-3f ? go / gl : Vec2.Zero) * 2.2f; // acomodarse detrás del rival (gana a "huir")
-                        if (USEDASH && gl > 2.4f && me.DashCd <= 0f && DashIsSafe(me, go / gl)) { cmd.Move = go / gl; cmd.Buttons |= InputButtons.DashPressed; return cmd; }
-                    }
-                }
-                else _huntT = 0f;
 
                 // D: empujón si un rival está a menos de 1.4 m (probabilidad 0.3 por segundo)
                 if (!pitShove && _sim.Rules.Shove && me.ShoveCd <= 0f)
@@ -308,7 +331,8 @@ namespace BoomerangFighters.Core
             move += _wander;
 
             // V5: alejarse de la orilla de un vacío si está a menos de 0.8 m
-            if (_sim.Arena.HasPits) move += _sim.Arena.PitRepulsion(me.Pos, T.Pits.SafeMargin) * 3f;
+            var pitAway = _sim.Arena.HasPits ? _sim.Arena.PitRepulsion(me.Pos, T.Pits.SafeMargin) : Vec2.Zero;
+            move += pitAway * 3f;
 
             // evitar obstáculos (IsFree cuenta los vacíos como obstáculo)
             const float look = 1.4f;
@@ -318,6 +342,15 @@ namespace BoomerangFighters.Core
                 var l = n0.Perp;
                 bool leftFree = _sim.Arena.IsFree(me.Pos + l * look, T.Player.Radius);
                 move = leftFree ? l : -l;
+            }
+
+            // dentro de esa franja de 0.8 m nunca se acerca más a la orilla: se quita la parte del paso que va hacia el hueco
+            if (pitAway.SqrLength > 1e-6f)
+            {
+                var away = pitAway.Normalized;
+                float toward = -Vec2.Dot(move, away);
+                if (toward > 0f) move += away * toward;
+                if (move.SqrLength < 0.04f) move = away * 0.6f;
             }
 
             float mag = MathF.Min(1f, move.Length);
@@ -359,43 +392,21 @@ namespace BoomerangFighters.Core
             return Vec2.Zero;
         }
 
-        /// <summary>Con gorra: ¿hacia qué lado conviene rodear para dejar al rival entre un vacío cercano y yo?</summary>
-        bool GoodSide(PlayerState me, PlayerState tgt, Vec2 n, out int side)
-        {
-            side = 0;
-            float best = 4f;
-            Vec2 u = Vec2.Zero;
-            foreach (var pit in _sim.Arena.Def.Pits)
-            {
-                var c = pit.Closest(tgt.Pos) - tgt.Pos;
-                float d = c.Length;
-                if (d >= best || d < 0.05f) continue;
-                best = d; u = c / d;
-            }
-            if (u.SqrLength < 0.5f) return false;
-            // quiero quedar en tgt − u·d: moverme de lado hacia allá
-            var want = tgt.Pos - u * Vec2.Distance(me.Pos, tgt.Pos) - me.Pos;
-            float s = Vec2.Dot(n.Perp, want);
-            if (MathF.Abs(s) < 0.6f) return false; // ya estoy alineado
-            side = s > 0f ? 1 : -1;
-            return true;
-        }
-
         /// <summary>¿Un empujón (2.5 m) en esa dirección dejaría a "o" dentro de un vacío?</summary>
         bool ShoveEndsInPit(PlayerState o, Vec2 dir)
-        {
-            var PT = _sim.T.Player;
-            return _sim.Arena.InPit(o.Pos + dir * PT.ShoveDistance, _sim.T.Pits.FallInset + 0.08f);
-        }
+            => _sim.Arena.InPit(o.Pos + dir * _shoveReach, _sim.T.Pits.FallInset + 0.08f);
+
+        void EndHunt() { _huntCd = HuntCooldown; _huntT = 0f; }
 
         /// <summary>
-        /// Busca un rival al que un empujón mandaría a un vacío. "inPlace" = ya estoy en posición (empujar ya,
-        /// apuntando a "aim"); si no, "standAt" es el punto detrás del rival desde donde sí saldría.
-        /// Solo cuenta si ya estoy más o menos del lado correcto (no rodea al rival).
+        /// Busca un rival al que un empujón mandaría a un vacío.
+        /// "inPlace" = ya estoy en posición: empujar ya, apuntando a "aim". Si no, "standAt" es el punto
+        /// detrás del rival (del lado contrario al vacío) desde donde sí saldría el empujón.
         /// </summary>
         bool FindPitShove(PlayerState me, out Vec2 aim, out Vec2 standAt, out bool inPlace)
         {
             aim = Vec2.Zero; standAt = me.Pos; inPlace = false;
+            if (me.Cap.Mode == CapMode.Recall) return false; // mi gorra ya viene en camino: mejor esperarla
             var PT = _sim.T.Player;
             var arena = _sim.Arena;
             float range = PT.MeleeRange + PT.Radius * 0.5f - 0.1f;
@@ -406,7 +417,7 @@ namespace BoomerangFighters.Core
                 if (o.Id == _id || !o.Alive || o.PushT > 0f) continue;
                 var delta = o.Pos - me.Pos;
                 float d = delta.Length;
-                if (d > (o.HasCap ? HUNTA : HUNT) || d < 1e-3f) continue;
+                if (d > (o.HasCap ? _cfg.PitHunt * HuntArmedFactor : _cfg.PitHunt) || d < 1e-3f) continue;
                 var dir = delta / d;
                 bool straight = ShoveEndsInPit(o, dir);
                 if (d <= range && straight)
@@ -419,15 +430,15 @@ namespace BoomerangFighters.Core
                 bool ok = straight;
                 if (!ok)
                 {
-                    // corregir un poco el ángulo: hacia el punto más cercano del vacío o hacia su centro
+                    // desde aquí no sale: buscar el lado bueno (hacia el punto más cercano del vacío o hacia su centro)
                     foreach (var pit in arena.Def.Pits)
                     {
-                        if (pit.Distance(o.Pos) > PT.ShoveDistance) continue;
+                        if (pit.Distance(o.Pos) > _shoveReach) continue;
                         for (int k = 0; k < 2 && !ok; k++)
                         {
                             var c = (k == 0 ? pit.Closest(o.Pos) : new Vec2(pit.x, pit.y)) - o.Pos;
                             var cu = c.Normalized;
-                            if (cu.SqrLength < 0.5f || Vec2.Dot(cu, dir) < SIDE || !ShoveEndsInPit(o, cu)) continue;
+                            if (cu.SqrLength < 0.5f || Vec2.Dot(cu, dir) < HuntSideMinDot || !ShoveEndsInPit(o, cu)) continue;
                             u = cu; ok = true;
                         }
                         if (ok) break;
@@ -442,13 +453,11 @@ namespace BoomerangFighters.Core
             return found;
         }
 
-        /// <summary>Un dash (2.7 m) más lo que patina al terminar: seguro solo si en todo el trayecto no hay vacío.</summary>
+        /// <summary>Un dash más lo que patina al terminar (≈1 m): seguro solo si en todo el trayecto no hay vacío.</summary>
         bool DashIsSafe(PlayerState me, Vec2 dir)
         {
             if (!_sim.Arena.HasPits) return true;
-            var PT = _sim.T.Player;
-            float reach = PT.DashSpeed * PT.DashTime + SLIDE;
-            return !_sim.Arena.SegmentCrossesPit(me.Pos, me.Pos + dir * reach, 0.3f);
+            return !_sim.Arena.SegmentCrossesPit(me.Pos, me.Pos + dir * (_dashReach + 1f), 0.3f);
         }
 
         Vec2 LeadAim(PlayerState me, PlayerState tgt, float d)

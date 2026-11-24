@@ -207,14 +207,17 @@ namespace BoomerangFighters.Core
     {
         public float Reaction, AimError, DodgeChance, ThrowRate, Lead;
         public float DeflectChance; // D: probabilidad de intentar desviar una gorra que viene
+        // v0.3 "empujón al vacío": sin gorra, hasta qué distancia (m) va por un rival al que un empujón dejaría dentro de un
+        // vacío (0 = nunca lo intenta) y la probabilidad por tick de soltar el empujón cuando ya está en posición
+        public float PitHunt, PitShoveChance;
 
         public static BotProfile For(BotDifficulty d)
         {
             switch (d)
             {
-                case BotDifficulty.Facil: return new BotProfile { Reaction = 0.55f, AimError = 0.32f, DodgeChance = 0.18f, ThrowRate = 0.9f, Lead = 0.3f, DeflectChance = 0.15f };
-                case BotDifficulty.Dificil: return new BotProfile { Reaction = 0.17f, AimError = 0.07f, DodgeChance = 0.75f, ThrowRate = 2.1f, Lead = 1.0f, DeflectChance = 0.6f };
-                default: return new BotProfile { Reaction = 0.32f, AimError = 0.16f, DodgeChance = 0.45f, ThrowRate = 1.4f, Lead = 0.75f, DeflectChance = 0.35f };
+                case BotDifficulty.Facil: return new BotProfile { Reaction = 0.55f, AimError = 0.32f, DodgeChance = 0.18f, ThrowRate = 0.9f, Lead = 0.3f, DeflectChance = 0.15f, PitHunt = 6f, PitShoveChance = 0.3f };
+                case BotDifficulty.Dificil: return new BotProfile { Reaction = 0.17f, AimError = 0.07f, DodgeChance = 0.75f, ThrowRate = 2.1f, Lead = 1.0f, DeflectChance = 0.6f, PitHunt = 9f, PitShoveChance = 1f };
+                default: return new BotProfile { Reaction = 0.32f, AimError = 0.16f, DodgeChance = 0.45f, ThrowRate = 1.4f, Lead = 0.75f, DeflectChance = 0.35f, PitHunt = 9f, PitShoveChance = 1f };
             }
         }
     }

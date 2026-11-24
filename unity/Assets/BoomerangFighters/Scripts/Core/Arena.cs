@@ -85,7 +85,6 @@ namespace BoomerangFighters.Core
         static Box B(float x, float y, float w, float d, float h, string k) => new Box(x, y, w, d, h, k);
         static Pit P(float x, float y, float w, float d, string k) => new Pit(x, y, w, d, k);
         static Vec2 V(float x, float y) => new Vec2(x, y);
-        static float PX = float.Parse(System.Environment.GetEnvironmentVariable("PX") ?? "9.6"), PY = float.Parse(System.Environment.GetEnvironmentVariable("PY") ?? "4.6");
 
         // B1 · Callejón Grafiti (26 × 16): coladeras abiertas y zanjas de obra
         public static readonly ArenaDef Callejon = new ArenaDef
@@ -150,7 +149,7 @@ namespace BoomerangFighters.Core
                 B(-5f, 3.2f, 2.6f, 0.6f, 1.4f, "rack"), B(5f, -3.2f, 2.6f, 0.6f, 1.4f, "rack"),
                 B(0f, 0f, 2.2f, 1.2f, 0.9f, "table"), // mesa de gorras: baja, las gorras pasan
             },
-            Pits = new[] { P(-PX, PY, 1.6f, 2.2f, "escalera"), P(PX, -PY, 1.6f, 2.2f, "escalera") },
+            Pits = new[] { P(-9.6f, 4.6f, 1.6f, 2.2f, "escalera"), P(9.6f, -4.6f, 1.6f, 2.2f, "escalera") },
             Spawns = new[] { V(-9.5f, -5.5f), V(9.5f, 5.5f), V(6.5f, -5.5f), V(-6.5f, 5.5f), V(0f, -5.8f), V(0f, 5.8f) },
             Drop = new DropBoxDef { First = 8f, Every = 20f, Warn = 1.5f, Radius = 1.1f },
         };
@@ -309,35 +308,21 @@ namespace BoomerangFighters.Core
             return null;
         }
 
-        /// <summary>Empuja un círculo fuera de muros y obstáculos. Devuelve true si chocó.</summary>
-        public bool ResolveCircle(ref Vec2 p, float r)
+        /// <summary>
+        /// Empuja un círculo fuera de muros y obstáculos. Devuelve true si chocó.
+        /// Los vacíos NO empujan (te caes). Con "solidPits" sí: fuera de la ronda en juego ya nadie puede caer,
+        /// así que se vuelven sólidos para que el ganador no camine "en el aire" (igual que el prototipo web).
+        /// </summary>
+        public bool ResolveCircle(ref Vec2 p, float r, bool solidPits = false)
         {
             bool hit = ClampToWalls(ref p, r);
             foreach (var o in Def.Obstacles)
             {
                 if (BeyondWalls(o)) continue;
-                float cx = SimMath.Clamp(p.x, o.x - o.w / 2f, o.x + o.w / 2f);
-                float cz = SimMath.Clamp(p.y, o.y - o.d / 2f, o.y + o.d / 2f);
-                float dx = p.x - cx, dz = p.y - cz;
-                float d2 = dx * dx + dz * dz;
-                if (d2 >= r * r) continue;
-                hit = true;
-                if (d2 > 1e-6f)
-                {
-                    float d = MathF.Sqrt(d2);
-                    p.x = cx + dx / d * r; p.y = cz + dz / d * r;
-                }
-                else
-                {
-                    float left = p.x - (o.x - o.w / 2f), right = (o.x + o.w / 2f) - p.x;
-                    float top = p.y - (o.y - o.d / 2f), bot = (o.y + o.d / 2f) - p.y;
-                    float m = MathF.Min(MathF.Min(left, right), MathF.Min(top, bot));
-                    if (m == left) p.x = o.x - o.w / 2f - r;
-                    else if (m == right) p.x = o.x + o.w / 2f + r;
-                    else if (m == top) p.y = o.y - o.d / 2f - r;
-                    else p.y = o.y + o.d / 2f + r;
-                }
+                hit |= PushOutOfRect(ref p, r, o.x, o.y, o.w, o.d);
             }
+            if (solidPits)
+                foreach (var pit in Def.Pits) hit |= PushOutOfRect(ref p, r, pit.x, pit.y, pit.w, pit.d);
             // muros de tag
             foreach (var w in TagWalls)
             {
@@ -348,6 +333,33 @@ namespace BoomerangFighters.Core
             // los muros de muerte súbita mandan: empujan hacia adentro aunque haya algo detrás
             if (WallInset > 0f) hit |= ClampToWalls(ref p, r);
             return hit;
+        }
+
+        /// <summary>Saca un círculo de un rectángulo (centro, ancho, fondo). true si se tocaban.</summary>
+        static bool PushOutOfRect(ref Vec2 p, float r, float x, float y, float w, float d)
+        {
+            float cx = SimMath.Clamp(p.x, x - w / 2f, x + w / 2f);
+            float cz = SimMath.Clamp(p.y, y - d / 2f, y + d / 2f);
+            float dx = p.x - cx, dz = p.y - cz;
+            float d2 = dx * dx + dz * dz;
+            if (d2 >= r * r) return false;
+            if (d2 > 1e-6f)
+            {
+                float dist = MathF.Sqrt(d2);
+                p.x = cx + dx / dist * r; p.y = cz + dz / dist * r;
+            }
+            else
+            {
+                // el centro quedó dentro: salir por el lado más cercano
+                float left = p.x - (x - w / 2f), right = (x + w / 2f) - p.x;
+                float top = p.y - (y - d / 2f), bot = (y + d / 2f) - p.y;
+                float m = MathF.Min(MathF.Min(left, right), MathF.Min(top, bot));
+                if (m == left) p.x = x - w / 2f - r;
+                else if (m == right) p.x = x + w / 2f + r;
+                else if (m == top) p.y = y - d / 2f - r;
+                else p.y = y + d / 2f + r;
+            }
+            return true;
         }
 
         bool ClampToWalls(ref Vec2 p, float r)

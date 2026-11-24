@@ -134,8 +134,9 @@ namespace BoomerangFighters.Tests
             var warn = ev.Single(e => e.Type == SimEventType.SuddenDeathWarn);
             Assert.Contains(ev, e => e.Type == SimEventType.SuddenDeathStart);
             // a los 30 s: 9 s de avance × 0.5 m/s = 4.5 m → el jugador fue empujado hacia adentro
-            Assert.InRange(xAt30, -(11.5f - 4.5f - 0.55f) - 0.05f, -(11.5f - 4.5f - 0.55f) + 0.05f);
-            Assert.Equal(11.5f - 4f, sim.Arena.WallInset, 3); // se detuvo al dejar 8 m
+            // (v0.3: el callejón mide 26 m de ancho, la mitad son 13 m; antes 11.5)
+            Assert.InRange(xAt30, -(13f - 4.5f - 0.55f) - 0.05f, -(13f - 4.5f - 0.55f) + 0.05f);
+            Assert.Equal(13f - 4f, sim.Arena.WallInset, 3); // se detuvo al dejar 8 m
             Assert.True(sim.Players[0].Pos.x >= -4f && sim.Players[1].Pos.x <= 4f);
             Assert.True(sim.Players[0].Alive && sim.Players[1].Alive, "los muros empujan, no matan");
             Assert.Equal(MatchPhase.RoundEnd, sim.Phase);

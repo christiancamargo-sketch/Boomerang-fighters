@@ -41,8 +41,8 @@ Todo se dibuja con primitivas grises (*greybox*) para que se juegue desde el dí
 | Archivo | Qué hace |
 |---|---|
 | `Core/MatchSimulation.cs` | La partida completa a 60 ticks/seg: movimiento, gorra que va y regresa en curva, rebote en paredes, golpe que desvía, ¡CLANK! entre gorras, power-ups, láser del museo, rondas y marcador. |
-| `Core/BotBrain.cs` | Bots que "presionan botones" igual que un humano (apuntan con predicción, esquivan con dash, recogen latas). 3 dificultades. |
-| `Core/Arena.cs` | Los 3 escenarios (Callejón Grafiti, Museo de Arte, Azotea CDMX) y sus colisiones. |
+| `Core/BotBrain.cs` | Bots que "presionan botones" igual que un humano (apuntan con predicción, esquivan con dash, recogen latas). 3 dificultades. Desde v0.3 rodean los vacíos, salen de la sombra de la caja DROP y, sin gorra, empujan al rival hacia un vacío. |
+| `Core/Arena.cs` | Los 4 escenarios (Callejón Grafiti, Museo de Arte, Azotea CDMX y Pop-up Store INKCAP) con sus vacíos, la caja DROP y las colisiones. |
 | `Core/Tuning.cs` | Todos los números del juego, ya balanceados en el prototipo web. Se ajustan desde un `TuningAsset` en el Inspector. |
 | `Core/Entities.cs` | `InputCommand` (5 bytes por tick para la red), jugadores, gorras, eventos. |
 | `Core/Snapshot.cs` | Foto del estado que el anfitrión manda a los clientes (≈0.6–1 KB, 30 por segundo). |
@@ -89,7 +89,7 @@ La v0.2 sale **solo con multijugador local por Wi‑Fi/hotspot**: sin backend, s
 Necesitas el [.NET 8 SDK](https://dotnet.microsoft.com/download).
 
 ```bash
-cd unity/Tests~/SimTests && dotnet test            # 70 pruebas: mecánicas y reglas v0.2, modos, determinismo, snapshots, red con lag/pérdida, UDP real, anuncio LAN, progreso local y Reto del Día
+cd unity/Tests~/SimTests && dotnet test            # 112 pruebas: mecánicas, reglas v0.2 y v0.3 (vacíos, 4 arenas, caja DROP), modos, bots, determinismo, snapshots, red con lag/pérdida, UDP real, anuncio LAN, progreso local y Reto del Día
 cd unity/Tests~/HeadlessHost && dotnet run -c Release -- balance 25 normal   # métricas de balance con miles de rondas de bots
 cd unity/Tests~/HeadlessHost && dotnet run -- lan "Sala de prueba"           # abre una sala LAN sin gráficos (servidor)
 cd unity/Tests~/CoreCompat && dotnet build         # confirma compatibilidad con el perfil de Unity (.NET Standard 2.1, C# 9)
@@ -107,6 +107,18 @@ La carpeta termina en `~` para que Unity la ignore.
 | Azotea CDMX | 187 | 11.7 s | 11.0 s | 17.1 s | 1.1 % | 4 (2.1 %) | — |
 
 KOs por causa: ¡GORRAZO! ≈ 50 %, ¡DE REGRESO! 27–37 %, ¡TE LA REGRESO! 10–11 %, ¡DE BANDA! 2 %. Ninguna ronda llegó al empate por tiempo (45 s). Los bots ya desvían (83–101 "te la regreso" por arena) pero casi no empujan (2–6 por arena); entre bots el ¡CLANK! sigue saliendo unas 3 veces por ronda. En Lata Caliente con 4 bots la ronda dura ≈ 38–49 s según la arena (3 explosiones de 10–20 s): si se quiere más corta, bajar `ModeTuning.HotCanMin/Max`.
+
+**Métricas del balance v0.3** (mismo comando; escenarios de 26 × 16 con vacíos y la Pop-up Store de 24 × 15; spec `docs/diseno/spec-v0.3-escenarios.md`):
+
+| Arena | Rondas | Promedio | Mediana | p90 | KOs por vacío (con crédito + sin crédito) | Caja DROP | Láser |
+|---|---|---|---|---|---|---|---|
+| Callejón Grafiti | 170 | 12.4 s | 11.4 s | 18.6 s | 7.8 % (7.8 + 0.0) | — | — |
+| Museo de Arte | 190 | 12.1 s | 11.3 s | 16.8 s | 4.2 % (4.2 + 0.0) | — | 10.2 % |
+| Azotea CDMX | 185 | 10.8 s | 10.1 s | 15.8 s | 10.1 % (9.7 + 0.4) | — | — |
+| Pop-up Store INKCAP | 172 | 12.6 s | 11.5 s | 18.8 s | 2.3 % (2.3 + 0.0) | 0 KOs en 79 cajas | — |
+| **Total** | 717 | 11.9 s | | | **6.1 %** (6.0 + 0.1) | 0.0 % | 2.7 % |
+
+Metas de la spec: rondas de 10–25 s en cada arena, caídas al vacío entre 5 % y 25 % de los KOs y menos de 15 % sin crédito, estas dos sobre el total de las 4 arenas. Las tres se cumplen. Los bots casi nunca se caen solos; las caídas salen de su táctica de empujar al rival hacia un vacío cuando se quedan sin gorra. En la Pop-up Store el vacío pesa poco (las escaleras están en dos esquinas) y los bots siempre salen de la sombra de la caja DROP; con jugadores humanos habrá más caídas y más ¡DROP!. Con bots en Fácil el total de vacío baja a ≈ 2.4 % y en Difícil sube a ≈ 7.9 %.
 
 ## Siguientes pasos técnicos (en orden)
 

@@ -22,6 +22,8 @@ namespace BoomerangFighters.Core
         public const int TickRate = 60;
         public const float Dt = 1f / TickRate;
         public const int MaxPlayers = 8;
+        /// <summary>Margen de redondeo para dar por terminado un empujón (mismo valor que el prototipo web).</summary>
+        public const float PushEps = 1e-6f;
 
         public readonly MatchConfig Config;
         public readonly Tuning T;
@@ -285,8 +287,8 @@ namespace BoomerangFighters.Core
             if (mlen > 0.2f || inp.HasAim) p.Facing = p.AimDir;
             if (!canAct) { move = Vec2.Zero; mlen = 0f; }
 
-            // dash
-            if (canAct && inp.DashPressed && p.DashCd <= 0f)
+            // dash (mientras lo empujan no puede: es un "dash forzado" que no controla; igual que en el prototipo web)
+            if (canAct && inp.DashPressed && p.DashCd <= 0f && p.PushT <= 0f)
             {
                 p.DashT = PT.DashTime;
                 p.DashCd = PT.DashCooldown;
@@ -340,6 +342,7 @@ namespace BoomerangFighters.Core
             {
                 // lo empujaron: "dash forzado" que no controla
                 p.PushT -= dt;
+                if (p.PushT <= PushEps) p.PushT = 0f; // sin el margen, el redondeo de float daba un tick de más (2.71 m en vez de 2.5 m)
                 v = p.PushVel;
             }
             else if (p.DashT > 0f)
@@ -359,7 +362,8 @@ namespace BoomerangFighters.Core
             p.Vel = v;
             p.Pos += v * dt;
             if (pushed && p.PushT <= 0f) p.Vel = Vec2.Zero; // el empujón recorre 2.5 m exactos, sin patinar
-            Arena.ResolveCircle(ref p.Pos, PT.Radius);
+            // con la ronda ya decidida (o en la cuenta regresiva) nadie cae: los vacíos se vuelven sólidos
+            Arena.ResolveCircle(ref p.Pos, PT.Radius, Phase != MatchPhase.Play);
 
             // pintura enemiga alenta
             for (int i = 0; i < Paint.Count; i++)

@@ -174,9 +174,10 @@ namespace BoomerangFighters.Tests
     {
         [Theory]
         // valores calculados con prototipo/src/rng.js + DAILY_RULES (mismo Rng que el núcleo)
-        [InlineData(2026, 11, 23, 20261123, "azotea", "sin-muerte-subita")]
-        [InlineData(2026, 12, 1, 20261201, "callejon", "lluvia-latas")]
-        [InlineData(2027, 1, 15, 20270115, "azotea", "sin-empujon")]
+        // v0.3 (spec §E.3): la arena sale de las 4 arenas (callejon, museo, azotea, popup); la regla no cambia
+        [InlineData(2026, 11, 23, 20261123, "museo", "sin-muerte-subita")]
+        [InlineData(2026, 12, 1, 20261201, "azotea", "lluvia-latas")]
+        [InlineData(2027, 1, 15, 20270115, "popup", "sin-empujon")]
         [InlineData(2026, 2, 28, 20260228, "azotea", "aerosol")]
         public void MismaArenaYReglaQueLaWeb(int y, int m, int d, int seed, string arena, string rule)
         {

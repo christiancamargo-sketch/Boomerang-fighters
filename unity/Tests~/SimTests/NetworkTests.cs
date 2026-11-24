@@ -108,7 +108,7 @@ namespace BoomerangFighters.Tests
         [Fact]
         public void LaConfigViajaConModoYReglas()
         {
-            Assert.Equal(2, Protocol.Version);
+            Assert.Equal(3, Protocol.Version); // v0.3: snapshot v3 (caja DROP), eventos y escenarios nuevos
             var cfg = new MatchConfig
             {
                 ArenaId = "azotea", PointsToWin = 7, Seed = 20261123u, Mode = GameMode.LaReta,
